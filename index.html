@@ -1,0 +1,2206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#101214" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
+<meta name="description" content="Rutinas automáticas para tu cinta NordicTrack por Bluetooth.">
+<title>Cinta · Rutinas</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* VOICE  a coach at your shoulder: short, direct Spanish, numbers first
+   IDEA   the running track: tartan lane, white lane lines, a belt that moves
+   PICTURE the routine drawn as a lane profile: speed blocks + incline line
+   COLOUR charcoal belt ground, tartan orange-red for speed/action, glacier blue for incline
+   TYPE   condensed numerals (Roboto Condensed on Android) for every number, system UI for words
+   LAYOUT one thumb-reach column; live numbers on top, controls at the bottom */
+:root{
+  color-scheme:light dark;
+  --bg:#f3f2ee;--surf:#ffffff;--surf2:#e8e6e0;--line:#d6d3cb;--ink:#15171a;--mut:#5b6169;
+  --acc:#c63f17;--acc-ink:#ffffff;--acc-soft:#c63f171f;--sky:#1478b5;--sky-soft:#1478b51f;
+  --warn:#9a5200;--bad:#b3261e;--ok:#1478b5;
+  --num:"Roboto Condensed","sans-serif-condensed","Arial Narrow","Helvetica Neue",system-ui,sans-serif;
+  --ui:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --r:16px;--pad:16px;
+  --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#101214;--surf:#191c20;--surf2:#23272c;--line:#30353c;--ink:#f3f0e9;--mut:#9da3ab;
+  --acc:#ff6a3d;--acc-ink:#1a0c06;--acc-soft:#ff6a3d24;--sky:#66c6f0;--sky-soft:#66c6f024;
+  --warn:#ffb44d;--bad:#ff6b63;--ok:#66c6f0;
+}}
+:root[data-theme=light]{color-scheme:light;--bg:#f3f2ee;--surf:#ffffff;--surf2:#e8e6e0;--line:#d6d3cb;--ink:#15171a;--mut:#5b6169;--acc:#c63f17;--acc-ink:#fff;--acc-soft:#c63f171f;--sky:#1478b5;--sky-soft:#1478b51f;--warn:#9a5200;--bad:#b3261e;--ok:#1478b5}
+:root[data-theme=dark]{color-scheme:dark;--bg:#101214;--surf:#191c20;--surf2:#23272c;--line:#30353c;--ink:#f3f0e9;--mut:#9da3ab;--acc:#ff6a3d;--acc-ink:#1a0c06;--acc-soft:#ff6a3d24;--sky:#66c6f0;--sky-soft:#66c6f024;--warn:#ffb44d;--bad:#ff6b63;--ok:#66c6f0}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--ui);overflow-x:clip;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.num{font-family:var(--num);font-variant-numeric:tabular-nums;font-weight:700;letter-spacing:-.01em}
+.mut{color:var(--mut)}
+.hide{display:none!important}
+svg.i{width:22px;height:22px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* app chrome */
+.top{position:sticky;top:0;z-index:20;background:var(--bg);padding:calc(var(--sat) + 10px) var(--pad) 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+.top::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--acc)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;margin-right:auto}
+.brand svg{width:30px;height:30px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;background:var(--surf2);font-size:14px;white-space:nowrap;max-width:60vw;overflow:hidden;text-overflow:ellipsis}
+.chip .dot{width:9px;height:9px;border-radius:50%;background:var(--mut);flex:none}
+.chip[data-s=ready] .dot{background:var(--sky)}
+.chip[data-s=busy] .dot{background:var(--warn);animation:pulse 1s infinite}
+.chip[data-s=lost] .dot{background:var(--bad)}
+@keyframes pulse{50%{opacity:.25}}
+main{max-width:640px;margin:0 auto;padding:var(--pad) var(--pad) calc(96px + var(--sab))}
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surf);border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding-bottom:var(--sab)}
+.tabs button{background:none;border:0;padding:10px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:13px;color:var(--mut);min-height:60px}
+.tabs button[aria-current=page]{color:var(--acc);font-weight:600}
+body.running .tabs{display:none}
+h1{font-size:30px;line-height:1.1;margin:4px 0 12px;text-wrap:balance}
+h2{font-size:20px;line-height:1.2;margin:28px 0 10px}
+p{margin:0 0 12px}
+
+/* surfaces + controls */
+.card{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:var(--pad)}
+.stack>*+*{margin-top:12px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 18px;border-radius:14px;border:1px solid var(--line);background:var(--surf2);font-weight:600;font-size:16px;text-decoration:none}
+.btn.pri{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+.btn.big{min-height:60px;font-size:18px;border-radius:18px;padding:0 22px}
+.btn.wide{width:100%}
+.btn.ghost{background:none}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.icon-btn{width:48px;height:48px;border-radius:14px;border:1px solid var(--line);background:var(--surf2);display:inline-flex;align-items:center;justify-content:center;flex:none}
+.link{background:none;border:0;color:var(--sky);text-decoration:underline;padding:8px 0;min-height:44px}
+
+/* connect hero */
+.hero{display:grid;gap:16px}
+.hero-pic{border-radius:var(--r);overflow:hidden;background:var(--surf);border:1px solid var(--line)}
+.hero-pic svg{display:block;width:100%;height:auto}
+.check{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+.check li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start}
+.check>li>b{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--acc-soft);color:var(--acc);align-items:center;justify-content:center;font-family:var(--num);font-size:15px}
+.notice{border-left:4px solid var(--warn);background:var(--surf);padding:12px 14px;border-radius:10px;font-size:15px}
+
+/* live panel */
+.live{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.gauge{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 12px;position:relative;overflow:hidden}
+.gauge .lbl{font-size:14px;color:var(--mut);display:flex;align-items:center;gap:6px}
+.gauge .val{font-size:clamp(52px,17vw,76px);line-height:1;margin:6px 0 2px}
+.gauge .val small{font-size:18px;font-family:var(--ui);font-weight:600;color:var(--mut);margin-left:4px;letter-spacing:0}
+.gauge .sub{font-size:14px;color:var(--mut);min-height:21px}
+.gauge.spd{box-shadow:inset 0 -5px 0 var(--acc)}
+.gauge.inc{box-shadow:inset 0 -5px 0 var(--sky)}
+.adj{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.adj>div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.adj button{min-height:56px;border-radius:14px;border:1px solid var(--line);background:var(--surf2);font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.stat{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.stat span{display:block;font-size:13px;color:var(--mut)}
+.stat b{font-size:22px;white-space:nowrap}
+.stat b small{font:600 13px var(--ui);color:var(--mut);margin-left:3px;letter-spacing:0}
+.actions{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:10px;margin-top:14px}
+.mode-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:13px;font-weight:600;background:var(--surf2)}
+.mode-pill[data-m=moving]{background:var(--acc-soft);color:var(--acc)}
+.mode-pill[data-m=warn]{background:#ffb44d33;color:var(--warn)}
+
+/* routine list */
+.rlist{display:grid;gap:12px}
+.rcard{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.rcard h3{margin:0;font-size:18px;line-height:1.25}
+.rmeta{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;color:var(--mut)}
+.rmeta b{color:var(--ink);font-family:var(--num);font-size:17px}
+.rbtns{display:grid;grid-template-columns:minmax(0,1fr) 48px 48px;gap:8px}
+.strip{height:44px;position:relative}
+.strip svg,.prof svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.prof{height:150px;position:relative;background:var(--surf);border:1px solid var(--line);border-radius:var(--r)}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--mut);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* editor */
+.ed-top{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ed-top input{flex:1;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surf);padding:0 12px;font-size:18px;font-weight:600}
+.segs{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.seg{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:10px 8px 10px 10px;min-height:60px}
+.seg .n{width:30px;height:30px;border-radius:9px;background:var(--surf2);display:flex;align-items:center;justify-content:center;font-family:var(--num);font-weight:700;color:var(--mut)}
+.seg .t{font-weight:600;line-height:1.25}
+.seg .d{font-size:14px;color:var(--mut);font-family:var(--num);font-size:16px}
+.seg .d b{color:var(--acc)} .seg .d em{font-style:normal;color:var(--sky);font-weight:700}
+.seg button.open{background:none;border:0;text-align:left;padding:0;min-height:44px}
+.seg .ord{display:flex;gap:4px}
+.seg .ord button{width:40px;height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surf2);display:flex;align-items:center;justify-content:center}
+.sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+
+/* sheet (dialogs) */
+.scrim{position:fixed;inset:0;z-index:50;background:#0008;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:18px var(--pad) calc(18px + var(--sab));box-shadow:0 -10px 40px #0005}
+.sheet h3{margin:0 0 12px;font-size:21px}
+.field{margin:14px 0}
+.field>label,.field>.lbl{display:block;font-size:14px;color:var(--mut);margin-bottom:6px}
+.field input[type=text],.field textarea{width:100%;min-height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surf);padding:10px 12px;font-size:16px}
+.field textarea{min-height:120px;font-family:ui-monospace,monospace;font-size:13px}
+.stepper{display:grid;grid-template-columns:48px 48px minmax(0,1fr) 48px 48px;gap:6px;align-items:center}
+.stepper button{height:48px;border-radius:12px;border:1px solid var(--line);background:var(--surf2);font-weight:700;font-size:15px;font-family:var(--num)}
+.stepper output,.stepper input{text-align:center;font-family:var(--num);font-weight:700;font-size:30px;line-height:1;background:none;border:0;width:100%;padding:6px 0}
+.stepper input{border-bottom:2px dashed var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips button{border:1px solid var(--line);background:var(--surf);border-radius:999px;padding:6px 12px;font-size:14px;min-height:36px}
+.sheet-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-top:18px}
+
+/* settings */
+.set{display:grid;gap:0;background:var(--surf);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.set>div{padding:14px var(--pad);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border-top:1px solid var(--line)}
+.set>div:first-child{border-top:0}
+.set .d{font-size:14px;color:var(--mut);margin-top:2px}
+.set>div.col{grid-template-columns:minmax(0,1fr)}
+.set>div.col>:last-child{justify-self:start}
+.seg-ctl{display:inline-grid;grid-auto-flow:column;background:var(--surf2);border-radius:12px;padding:3px;gap:3px}
+.seg-ctl button{border:0;background:none;border-radius:9px;padding:8px 12px;min-height:40px;font-weight:600;font-size:15px;white-space:nowrap}
+.seg-ctl button[aria-pressed=true]{background:var(--surf);box-shadow:0 1px 3px #0003;color:var(--acc)}
+.sw{position:relative;width:54px;height:32px;flex:none}
+.sw input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.sw span{position:absolute;inset:0;border-radius:999px;background:var(--line);transition:background .2s}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px #0004;transition:transform .2s}
+.sw input:checked+span{background:var(--acc)}
+.sw input:checked+span::after{transform:translateX(22px)}
+.sw input:focus-visible+span{outline:3px solid var(--sky);outline-offset:2px}
+.log{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:10px;max-height:320px;overflow:auto;font:12px/1.45 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+.log .tx{color:var(--sky)} .log .rx{color:var(--mut)} .log .ok{color:var(--ok)} .log .err{color:var(--bad)} .log .info{color:var(--ink)}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 14px;font-size:14px}
+.kv dt{color:var(--mut)} .kv dd{margin:0;font-family:var(--num);font-weight:600;overflow-wrap:anywhere}
+
+/* run view */
+.run-top{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:center;margin-bottom:10px}
+.run-top h1{font-size:20px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-top .rem{font-size:22px}
+.run-prof{height:92px}
+.segcard{margin-top:12px;background:var(--surf);border:1px solid var(--line);border-radius:22px;padding:16px;text-align:center;position:relative;overflow:hidden}
+.segcard .lab{font-size:17px;font-weight:600}
+.segcard .lab span{color:var(--mut);font-weight:400}
+.clock{font-size:clamp(84px,30vw,132px);line-height:.95;margin:6px 0 10px}
+.bar{height:8px;border-radius:99px;background:var(--surf2);overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:99px;transition:width .25s linear}
+.targets{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:12px}
+.tgt{background:var(--surf);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.tgt .lbl{font-size:14px;color:var(--mut)}
+.tgt .v{font-size:clamp(40px,12vw,56px);line-height:1.05}
+.tgt .v small{font-size:16px;font-family:var(--ui);font-weight:600;color:var(--mut);margin-left:3px}
+.tgt .live-v{font-size:14px;color:var(--mut)}
+.tgt.spd .v{color:var(--acc)} .tgt.inc .v{color:var(--sky)}
+.tgt .fine{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:8px}
+.tgt .fine button{min-height:44px;border-radius:12px;border:1px solid var(--line);background:var(--surf2);font-size:20px;font-weight:700}
+.next{margin-top:12px;padding:12px 14px;border-radius:14px;border:1px dashed var(--line);font-size:15px}
+.next b{font-family:var(--num)}
+.run-ctl{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:10px;margin-top:14px}
+.overlay{position:absolute;inset:0;background:var(--surf);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;text-align:center}
+.overlay .big{font-size:110px;line-height:1;color:var(--acc)}
+.banner{margin-top:12px;border-radius:14px;padding:12px 14px;background:#ffb44d26;border:1px solid var(--warn);font-weight:600}
+.banner.bad{background:#ff6b6326;border-color:var(--bad)}
+.toast{pointer-events:none;position:fixed;left:50%;bottom:calc(84px + var(--sab));transform:translateX(-50%);z-index:60;background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:14px;font-size:15px;max-width:min(92vw,520px);box-shadow:0 6px 24px #0005;text-align:center}
+.done-hero{text-align:center;padding:24px 8px}
+.done-hero .num{font-size:64px;line-height:1;color:var(--acc)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:360px){.gauge .val{font-size:48px}.stats b{font-size:19px}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 5l9 7-9 7zM18 5v14"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-bt" viewBox="0 0 24 24"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-gauge" viewBox="0 0 24 24"><path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l4-5"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1.2" fill="currentColor"/><circle cx="4.5" cy="12" r="1.2" fill="currentColor"/><circle cx="4.5" cy="18" r="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+    <symbol id="i-hill" viewBox="0 0 24 24"><path d="M3 19L10 9l4 5 2-3 5 8z"/></symbol>
+    <symbol id="i-dup" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11M14 11v6M11 14h6"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="1" y="1" width="30" height="30" rx="9" fill="var(--acc)"/><path d="M7 21h18M7 16h18M7 11h18" stroke="var(--acc-ink)" stroke-width="2.2" stroke-linecap="round" opacity=".9"/><path d="M11 24l10-16" stroke="var(--acc-ink)" stroke-width="2.6" stroke-linecap="round"/></svg>
+    <span>Cinta</span>
+  </div>
+  <button class="chip" id="chip" data-s="off" type="button" aria-live="polite"><span class="dot"></span><span id="chip-t">Desconectada</span></button>
+</header>
+
+<main id="main">
+  <!-- PANEL -->
+  <section id="v-panel" data-view="panel">
+    <div id="connect-box" class="hero">
+      <div class="hero-pic" aria-hidden="true">
+        <svg viewBox="0 0 640 300" preserveAspectRatio="xMidYMid slice">
+          <defs>
+            <linearGradient id="hg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--surf2)"/><stop offset="1" style="stop-color:var(--surf)"/></linearGradient>
+            <linearGradient id="belt" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a2e34"/><stop offset="1" stop-color="#15181b"/></linearGradient>
+          </defs>
+          <rect width="640" height="300" fill="url(#hg)"/>
+          <g opacity=".5" style="stroke:var(--line)" stroke-width="2"><path d="M0 250h640M0 270h640M0 290h640"/></g>
+          <ellipse cx="300" cy="252" rx="230" ry="12" fill="#0003"/>
+          <path d="M90 232 L470 212 L520 230 L140 252 Z" fill="url(#belt)"/>
+          <path d="M140 252 L520 230 L520 240 L140 262 Z" fill="#0b0c0e"/>
+          <g stroke="#ffffff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round">
+            <path id="lane1" d="M150 238 L210 235"/><path d="M260 232 L320 229"/><path d="M370 226 L430 223"/>
+          </g>
+          <path d="M455 214 L470 120 L486 118 L478 214 Z" style="fill:var(--mut)"/>
+          <path d="M432 128 L540 116 L548 132 L440 146 Z" style="fill:var(--surf);stroke:var(--line)" stroke-width="2"/>
+          <rect x="470" y="96" width="44" height="28" rx="5" transform="rotate(-6 492 110)" style="fill:var(--ink)"/>
+          <rect x="474" y="100" width="36" height="20" rx="3" transform="rotate(-6 492 110)" style="fill:var(--acc)"/>
+          <g fill="none" style="stroke:var(--sky)" stroke-width="4" stroke-linecap="round">
+            <path d="M530 86 q14 14 0 28" opacity=".95"/><path d="M546 74 q26 26 0 52" opacity=".6"/><path d="M562 62 q38 38 0 76" opacity=".35"/>
+          </g>
+          <path d="M90 232 L150 248 L150 254 L90 238 Z" style="fill:var(--acc)"/>
+          <text x="40" y="70" style="font:700 54px var(--num);fill:var(--ink)">6.5</text>
+          <text x="128" y="70" style="font:20px var(--ui);fill:var(--mut)">km/h</text>
+          <text x="40" y="118" style="font:700 40px var(--num);fill:var(--sky)">2.0<tspan style="font:18px var(--ui);fill:var(--mut)" dx="6">%</tspan></text>
+        </svg>
+      </div>
+      <div>
+        <h1>Conecta tu NordicTrack</h1>
+        <p class="mut">La app habla con la cinta por Bluetooth para cambiar velocidad e inclinación según tu rutina, sin tocar el panel.</p>
+      </div>
+      <div id="no-bt" class="notice hide">Este navegador no permite Bluetooth web. Abre la app en <b>Chrome para Android</b>. Mientras tanto puedes probarla en modo demostración.</div>
+      <ol class="check">
+        <li><b>1</b><span>Enciende la cinta y coloca la <strong>llave de seguridad</strong>; sujeta el clip a tu ropa.</span></li>
+        <li><b>2</b><span>Cierra la app iFit en otros teléfonos o tabletas: la cinta acepta una sola conexión.</span></li>
+        <li><b>3</b><span>Activa Bluetooth (y Ubicación, si tu Android lo pide).</span></li>
+      </ol>
+      <button class="btn pri big wide" id="btn-connect" type="button"><svg class="i"><use href="#i-bt"/></svg>Conectar cinta</button>
+      <button class="btn wide" id="btn-demo" type="button">Probar sin cinta (demostración)</button>
+    </div>
+
+    <div id="live-box" class="hide">
+      <div class="row" style="justify-content:space-between;margin-bottom:10px">
+        <span class="mode-pill" id="mode-pill">Detenida</span>
+        <span class="mut" id="units-hint" style="font-size:14px"></span>
+      </div>
+      <div class="live">
+        <div class="gauge spd"><div class="lbl"><svg class="i" style="width:18px;height:18px"><use href="#i-gauge"/></svg>Velocidad</div><div class="val num"><span id="lv-spd">0.0</span><small id="lv-spd-u">km/h</small></div><div class="sub num" id="lv-spd-2"></div></div>
+        <div class="gauge inc"><div class="lbl"><svg class="i" style="width:18px;height:18px"><use href="#i-hill"/></svg>Inclinación</div><div class="val num"><span id="lv-inc">0.0</span><small>%</small></div><div class="sub" id="lv-inc-2"></div></div>
+      </div>
+      <div class="adj" role="group" aria-label="Ajuste manual">
+        <div><button type="button" id="spd-dn" aria-label="Bajar velocidad"><svg class="i"><use href="#i-minus"/></svg></button><button type="button" id="spd-up" aria-label="Subir velocidad"><svg class="i"><use href="#i-plus"/></svg></button></div>
+        <div><button type="button" id="inc-dn" aria-label="Bajar inclinación"><svg class="i"><use href="#i-minus"/></svg></button><button type="button" id="inc-up" aria-label="Subir inclinación"><svg class="i"><use href="#i-plus"/></svg></button></div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Tiempo</span><b class="num" id="lv-time">0:00</b></div>
+        <div class="stat"><span>Distancia</span><b class="num" id="lv-dist">0.00</b></div>
+        <div class="stat"><span>Ritmo</span><b class="num" id="lv-pace">–</b></div>
+      </div>
+      <div class="actions">
+        <button class="btn pri big" id="btn-startstop" type="button"><svg class="i"><use href="#i-play"/></svg><span>Arrancar banda</span></button>
+        <button class="btn big" id="btn-stop" type="button"><svg class="i"><use href="#i-stop"/></svg>Detener</button>
+      </div>
+      <h2>Empezar una rutina</h2>
+      <div class="rlist" id="quick-list"></div>
+      <button class="link" id="btn-disconnect" type="button">Desconectar</button>
+    </div>
+  </section>
+
+  <!-- ROUTINES -->
+  <section id="v-rutinas" data-view="rutinas" class="hide">
+    <div class="row" style="justify-content:space-between">
+      <h1 style="margin:0">Rutinas</h1>
+      <button class="btn pri" id="btn-new" type="button"><svg class="i"><use href="#i-plus"/></svg>Nueva</button>
+    </div>
+    <p class="mut" style="margin-top:8px">Cada rutina es una lista de tramos: duración, velocidad e inclinación. La app hace los cambios por ti.</p>
+    <div class="rlist" id="routine-list"></div>
+  </section>
+
+  <!-- EDITOR -->
+  <section id="v-editor" data-view="editor" class="hide">
+    <div class="ed-top">
+      <button class="icon-btn" id="ed-back" type="button" aria-label="Volver"><svg class="i"><use href="#i-back"/></svg></button>
+      <input id="ed-name" type="text" maxlength="60" aria-label="Nombre de la rutina" placeholder="Nombre de la rutina">
+    </div>
+    <div class="prof" id="ed-prof"></div>
+    <div class="legend"><span><i style="background:var(--acc)"></i>Velocidad</span><span><i style="background:var(--sky);height:4px"></i>Inclinación</span></div>
+    <div class="sum" id="ed-sum"></div>
+    <ol class="segs" id="ed-segs"></ol>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="ed-add" type="button"><svg class="i"><use href="#i-plus"/></svg>Tramo</button>
+      <button class="btn" id="ed-intervals" type="button"><svg class="i"><use href="#i-repeat"/></svg>Intervalos</button>
+    </div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn pri big" id="ed-save" type="button" style="flex:1">Guardar</button>
+      <button class="btn big danger" id="ed-delete" type="button" aria-label="Eliminar rutina"><svg class="i"><use href="#i-trash"/></svg></button>
+    </div>
+  </section>
+
+  <!-- RUN -->
+  <section id="v-run" data-view="run" class="hide">
+    <div class="run-top">
+      <button class="icon-btn" id="run-end" type="button" aria-label="Terminar rutina"><svg class="i"><use href="#i-close"/></svg></button>
+      <h1 id="run-name">Rutina</h1>
+      <span class="num rem" id="run-rem">0:00</span>
+    </div>
+    <div class="prof run-prof" id="run-prof"></div>
+    <div class="segcard">
+      <div class="lab" id="run-lab">Tramo</div>
+      <div class="clock num" id="run-clock">0:00</div>
+      <div class="bar"><i id="run-bar"></i></div>
+      <div class="overlay hide" id="run-ov"></div>
+    </div>
+    <div id="run-banner" class="banner hide"></div>
+    <div class="targets">
+      <div class="tgt spd"><div class="lbl">Velocidad</div><div class="v num"><span id="run-spd">0.0</span><small id="run-spd-u">km/h</small></div><div class="live-v" id="run-spd-live"></div>
+        <div class="fine"><button type="button" id="run-spd-dn" aria-label="Bajar velocidad">−</button><button type="button" id="run-spd-up" aria-label="Subir velocidad">+</button></div></div>
+      <div class="tgt inc"><div class="lbl">Inclinación</div><div class="v num"><span id="run-inc">0.0</span><small>%</small></div><div class="live-v" id="run-inc-live"></div>
+        <div class="fine"><button type="button" id="run-inc-dn" aria-label="Bajar inclinación">−</button><button type="button" id="run-inc-up" aria-label="Subir inclinación">+</button></div></div>
+    </div>
+    <div class="next" id="run-next"></div>
+    <div class="run-ctl">
+      <button class="btn pri big" id="run-pause" type="button"><svg class="i"><use href="#i-pause"/></svg><span>Pausa</span></button>
+      <button class="btn big" id="run-skip" type="button"><svg class="i"><use href="#i-skip"/></svg>Saltar</button>
+    </div>
+  </section>
+
+  <!-- DONE -->
+  <section id="v-done" data-view="done" class="hide">
+    <div class="done-hero">
+      <p class="mut">Rutina terminada</p>
+      <h1 id="done-name">¡Bien hecho!</h1>
+      <div class="num" id="done-time">0:00</div>
+      <p class="mut">tiempo en movimiento</p>
+    </div>
+    <div class="stats" id="done-stats"></div>
+    <button class="btn pri big wide" id="done-ok" type="button" style="margin-top:18px">Listo</button>
+  </section>
+
+  <!-- SETTINGS -->
+  <section id="v-ajustes" data-view="ajustes" class="hide">
+    <h1>Ajustes</h1>
+    <h2>Unidades y límites</h2>
+    <div class="set">
+      <div><div>Unidad de velocidad<div class="d">Usa la misma que muestra tu consola.</div></div><div class="seg-ctl" id="set-unit"><button type="button" data-v="kmh">km/h</button><button type="button" data-v="mph">mph</button></div></div>
+      <div class="col"><div>Velocidad máxima permitida<div class="d">La app nunca enviará más que esto.</div></div><div class="row" style="flex-wrap:nowrap"><button class="icon-btn" type="button" id="max-dn" aria-label="Bajar máximo"><svg class="i"><use href="#i-minus"/></svg></button><b class="num" id="max-v" style="font-size:22px;min-width:64px;text-align:center">12</b><button class="icon-btn" type="button" id="max-up" aria-label="Subir máximo"><svg class="i"><use href="#i-plus"/></svg></button></div></div>
+    </div>
+    <h2>Durante la rutina</h2>
+    <div class="set">
+      <div><div>Arrancar la banda desde la app<div class="d">Si lo apagas, presiona START en el panel y la app toma el control.</div></div><label class="sw"><input type="checkbox" id="set-startapp"><span></span></label></div>
+      <div><div>Avisos de voz</div><label class="sw"><input type="checkbox" id="set-voice"><span></span></label></div>
+      <div><div>Pitidos antes de cada cambio</div><label class="sw"><input type="checkbox" id="set-beeps"><span></span></label></div>
+      <div class="col"><div>Avisar antes del cambio<div class="d">Te dice por voz qué viene.</div></div><div class="seg-ctl" id="set-warn"><button type="button" data-v="0">No</button><button type="button" data-v="5">5 s</button><button type="button" data-v="10">10 s</button><button type="button" data-v="15">15 s</button></div></div>
+      <div><div>Mantener la pantalla encendida</div><label class="sw"><input type="checkbox" id="set-wake"><span></span></label></div>
+    </div>
+    <h2>Conexión</h2>
+    <div class="set">
+      <div class="col"><div>Desbloqueo de la cinta<div class="d">Automático calcula la clave de tu cinta. Cambia solo si no responde.</div></div><div class="seg-ctl" id="set-unlock"><button type="button" data-v="auto">Auto</button><button type="button" data-v="v81">v81</button><button type="button" data-v="v83">v83</button></div></div>
+      <div><div>Mostrar todos los dispositivos al buscar<div class="d">Útil si tu cinta no aparece como «I_TL».</div></div><label class="sw"><input type="checkbox" id="set-all"><span></span></label></div>
+    </div>
+    <h2>Rutinas</h2>
+    <div class="row">
+      <button class="btn" type="button" id="btn-export"><svg class="i"><use href="#i-copy"/></svg>Copiar respaldo</button>
+      <button class="btn" type="button" id="btn-import">Importar</button>
+      <button class="btn" type="button" id="btn-samples">Restaurar ejemplos</button>
+    </div>
+    <h2>Diagnóstico</h2>
+    <dl class="kv" id="diag-kv"></dl>
+    <div class="row" style="margin:12px 0 8px">
+      <button class="btn" type="button" id="btn-copylog"><svg class="i"><use href="#i-copy"/></svg>Copiar registro</button>
+      <button class="btn ghost" type="button" id="btn-clearlog">Borrar</button>
+      <label class="row" style="gap:8px;font-size:15px"><span class="sw"><input type="checkbox" id="set-raw"><span></span></span>Mostrar bytes</label>
+    </div>
+    <div class="log" id="log" aria-live="off"></div>
+    <h2>Acerca de</h2>
+    <p class="mut" style="font-size:14px">Hecha para la NordicTrack T 6.5 S y cintas iFit con Bluetooth («I_TL»). No está afiliada a NordicTrack ni a iFIT. El protocolo se basa en el trabajo público de qdomyos-zwift, taylorbowland.com y STRIDE. La <b>llave de seguridad</b> es tu paro de emergencia: úsala siempre.</p>
+    <p class="mut" style="font-size:13px" id="ver"></p>
+  </section>
+</main>
+
+<nav class="tabs" id="tabs">
+  <button type="button" data-go="panel"><svg class="i"><use href="#i-gauge"/></svg>Panel</button>
+  <button type="button" data-go="rutinas"><svg class="i"><use href="#i-list"/></svg>Rutinas</button>
+  <button type="button" data-go="ajustes"><svg class="i"><use href="#i-gear"/></svg>Ajustes</button>
+</nav>
+<div id="layer"></div>
+
+<script>
+/* proto.js — FitPro protocol over the iFit Bluetooth service ("I_TL").
+ *
+ * Sources this follows (and is unit-tested against):
+ *  - qdomyos-zwift proformtreadmill.cpp (NordicTrack T6.5S v81/v83 frames, GPL-3.0; protocol facts only)
+ *  - taylorbowland.com "Reversing Treadmill Bluetooth" (T6.5S captures)
+ *  - STRIDE FITPRO_PROTOCOL.md (Apache-2.0): frame format, fields, security hash
+ *
+ * Layers:
+ *   FitPro frame  [device][length][command][content...][checksum]       (request)
+ *                 [device][length][command][status][data...][checksum]  (response)
+ *   Transport     [0x02,0x04,0x02,frameLen] + frame   (responses start 0x01,0x04,0x02)
+ *   BLE packets   header [0xFE,0x02,totalLen,packetCount] then
+ *                 [index|0xFF, chunkLen, up to 18 bytes] padded to 20 bytes
+ */
+(function (root) {
+  'use strict';
+
+  const SERVICE = '00001533-1412-efde-1523-785feabcd123';
+  const CH_WRITE = '00001534-1412-efde-1523-785feabcd123';
+  const CH_NOTIFY = '00001535-1412-efde-1523-785feabcd123';
+
+  const DEV = { MAIN: 0x02, TREADMILL: 0x04 };
+  const CMD = {
+    RW: 0x02, SUPPORTED_DEVICES: 0x80, DEVICE_INFO: 0x81, SYSTEM_INFO: 0x82,
+    VERSION_INFO: 0x84, SUPPORTED_COMMANDS: 0x88, VERIFY_SECURITY: 0x90, SERIAL_NUMBER: 0x95,
+  };
+  const STATUS = {
+    DEV_NOT_SUPPORTED: 0, CMD_NOT_SUPPORTED: 1, DONE: 2, IN_PROGRESS: 3, FAILED: 4,
+    TIME_LEFT: 5, UNKNOWN_FAILURE: 7, SECURITY_BLOCK: 8, COMM_FAILED: 9,
+  };
+  const STATUS_NAME = {
+    0: 'dispositivo no soportado', 1: 'comando no soportado', 2: 'ok', 3: 'en progreso',
+    4: 'rechazado', 5: 'tiempo restante', 7: 'fallo desconocido', 8: 'bloqueo de seguridad', 9: 'fallo de comunicación',
+  };
+  const MODE = {
+    UNKNOWN: 0, IDLE: 1, RUNNING: 2, PAUSE: 3, RESULTS: 4, DEBUG: 5, LOG: 6, MAINTENANCE: 7,
+    DMK: 8, DEMO: 9, WARMUP: 10, COOLDOWN: 11, SLEEP: 12, RESUME: 13, LOCKED: 14, PAUSE_OVERRIDE: 20,
+  };
+
+  // Field ids (Sindarin.FitPro1 BitField) used by this app.
+  const F = {
+    KPH: 0, GRADE: 1, WATTS: 3, CUR_DIST: 4, KEY: 7, PULSE: 10, MODE: 12, LAP_TIME: 15,
+    ACT_KPH: 16, CUR_TIME: 20, CUR_CAL: 21, GOAL_TIME: 22, WEIGHT: 25,
+    MAX_GRADE: 27, MIN_GRADE: 28, MAX_KPH: 30, MIN_KPH: 31,
+    IDLE_TIMEOUT: 34, PAUSE_TIMEOUT: 35, UNITS: 36, MAX_WEIGHT: 43, WARMUP_TIMEOUT: 46,
+    AVG_GRADE: 52, AVG_WATTS: 54, MOTOR_DIST: 69, TOTAL_TIME: 70, COOLDOWN_TIMEOUT: 71,
+    VM_NET: 75, VM_GAIN: 76, IDLE_LOCKOUT: 95, START_REQ: 96, ACTIVATION_LOCK: 100,
+    PAUSED_TIME: 103, REQUIRE_START: 108, IS_CLUB: 115,
+  };
+  // Converter widths in bytes.
+  const SIZE = {
+    0: 2, 1: 2, 3: 2, 4: 4, 7: 14, 9: 1, 10: 4, 12: 1, 15: 2, 16: 2, 20: 4, 21: 4, 22: 4, 25: 2,
+    27: 2, 28: 2, 30: 2, 31: 2, 34: 2, 35: 2, 36: 1, 43: 2, 46: 2, 52: 2, 54: 2, 69: 4, 70: 4,
+    71: 2, 75: 4, 76: 4, 95: 1, 96: 1, 100: 1, 103: 4, 108: 1, 115: 1,
+  };
+  const SIGNED = new Set([1, 27, 28, 52]);
+  const HUNDREDTHS = new Set([0, 1, 16, 27, 28, 30, 31, 52]);
+
+  // The read sets the iFit app itself sends to a T6.5S (taken from QZ's captured frames).
+  const TELEMETRY_READS = [0, 1, 3, 4, 10, 12, 15, 20, 21, 46, 52, 54, 71, 75, 76];
+  const STARTUP_READS = [12, 27, 28, 30, 31, 34, 35, 36, 43, 46, 69, 70, 71, 100, 115];
+
+  // VerifySecurity keys captured from two T6.5S revisions (QZ "v81" / "v83"): fallback only.
+  const KNOWN_KEYS = {
+    v81: '0701cec4b0aaa2a8949696aca8a2bad0dccefe14003a52786486a6fc18324aa0',
+    v83: '0701f4fcfe06001812223c44567e88b0aacae40c2e7690a8c2122c7486ce1860',
+  };
+
+  // ---------------------------------------------------------------- helpers
+  const sum8 = (arr, end) => { let s = 0; for (let i = 0; i < end; i++) s += arr[i]; return s & 0xff; };
+  const hex = (u8) => Array.from(u8 || [], (b) => b.toString(16).padStart(2, '0')).join(' ');
+  const fromHex = (s) => Uint8Array.from((s.replace(/[^0-9a-f]/gi, '').match(/../g) || []).map((h) => parseInt(h, 16)));
+  const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+  const le = (value, size) => { const out = []; let v = value; for (let i = 0; i < size; i++) { out.push(v & 0xff); v = Math.floor(v / 256); } return out; };
+
+  function encodeValue(fid, value) {
+    const size = SIZE[fid];
+    if (size == null) throw new Error('campo desconocido ' + fid);
+    let raw = HUNDREDTHS.has(fid) ? Math.round(value * 100) : Math.round(value);
+    if (raw < 0) raw += 2 ** (8 * size); // two's complement for signed fields
+    return le(raw, size);
+  }
+
+  function decodeValue(fid, b, off) {
+    const size = SIZE[fid];
+    let allFF = true;
+    for (let i = 0; i < size; i++) if (b[off + i] !== 0xff) { allFF = false; break; }
+    if (allFF) return null; // board's "no value" fill
+    if (fid === F.PULSE) return b[off]; // packed struct: [bpm][avg][count][source]
+    let raw = 0;
+    for (let i = size - 1; i >= 0; i--) raw = raw * 256 + b[off + i];
+    if (SIGNED.has(fid) && raw >= 2 ** (8 * size - 1)) raw -= 2 ** (8 * size);
+    return HUNDREDTHS.has(fid) ? raw / 100 : raw;
+  }
+
+  // ------------------------------------------------------------ FitPro frames
+  function frame(device, command, content = []) {
+    const len = content.length + 4;
+    if (len > 64) throw new Error('trama demasiado larga');
+    const f = new Uint8Array(len);
+    f[0] = device; f[1] = len; f[2] = command; f.set(content, 3);
+    f[len - 1] = sum8(f, len - 1);
+    return f;
+  }
+
+  function section(fids) {
+    if (!fids.length) return [0];
+    const n = Math.floor(Math.max(...fids) / 8) + 1;
+    const out = new Array(n + 1).fill(0);
+    out[0] = n;
+    for (const id of fids) out[1 + (id >> 3)] |= 1 << (id & 7);
+    return out;
+  }
+
+  /** ReadWriteData. writes: array of [fieldId, value]; reads: array of field ids. */
+  function rw(writes = [], reads = [], device = DEV.TREADMILL) {
+    const w = [...writes].sort((a, b) => a[0] - b[0]);
+    const r = [...new Set(reads)].sort((a, b) => a - b);
+    const content = [...section(w.map((x) => x[0]))];
+    for (const [fid, val] of w) content.push(...encodeValue(fid, val));
+    content.push(...section(r));
+    return frame(device, CMD.RW, content);
+  }
+
+  function isValidFrame(f) {
+    if (!f || f.length < 4) return false;
+    const len = f[1];
+    return len >= 4 && len <= f.length && f[len - 1] === sum8(f, len - 1);
+  }
+
+  /** Parse a ReadWriteData response for the given read list. */
+  function parseReads(resp, reads) {
+    const out = {};
+    if (!isValidFrame(resp) || resp[3] !== STATUS.DONE) return null;
+    const r = [...new Set(reads)].sort((a, b) => a - b);
+    let off = 4;
+    const end = resp[1] - 1;
+    for (const fid of r) {
+      const size = SIZE[fid];
+      if (size == null || off + size > end) break; // keep what is certain
+      out[fid] = decodeValue(fid, resp, off);
+      off += size;
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------- transport + BLE
+  function wrap(f) { const m = new Uint8Array(f.length + 4); m.set([0x02, 0x04, 0x02, f.length]); m.set(f, 4); return m; }
+
+  function packetize(msg) {
+    const chunks = [];
+    for (let i = 0; i < msg.length; i += 18) chunks.push(msg.subarray(i, i + 18));
+    const packets = [Uint8Array.from([0xfe, 0x02, msg.length, chunks.length + 1])];
+    chunks.forEach((c, i) => {
+      const p = new Uint8Array(20);
+      p[0] = i === chunks.length - 1 ? 0xff : i;
+      p[1] = c.length;
+      p.set(c, 2);
+      packets.push(p);
+    });
+    return packets;
+  }
+
+  const packetsFor = (f) => packetize(wrap(f));
+
+  /** Reassembles notification packets into transport messages, then FitPro frames. */
+  class Reassembler {
+    constructor() { this.buf = null; }
+    /** Returns a FitPro frame (Uint8Array) when one completes, otherwise null. */
+    feed(p) {
+      if (!p || p.length < 2) return null;
+      const tag = p[0];
+      if (tag === 0xfe) { this.buf = []; this.expected = p[2]; return null; }
+      if (this.buf === null) { if (tag !== 0x00 && tag !== 0xff) return null; this.buf = []; }
+      const n = Math.min(p[1], p.length - 2);
+      for (let i = 0; i < n; i++) this.buf.push(p[2 + i]);
+      if (tag !== 0xff) return null;
+      const msg = Uint8Array.from(this.buf);
+      this.buf = null;
+      return unwrap(msg);
+    }
+  }
+
+  function unwrap(msg) {
+    if (msg.length >= 5 && msg[1] === 0x04 && msg[2] === 0x02) {
+      const f = msg.subarray(4, 4 + msg[3]);
+      if (isValidFrame(f)) return Uint8Array.from(f);
+    }
+    // Fallback: find any well-formed frame inside the message.
+    for (let s = 0; s + 4 <= msg.length; s++) {
+      const len = msg[s + 1];
+      if (len >= 5 && s + len <= msg.length && isValidFrame(msg.subarray(s, s + len))) return Uint8Array.from(msg.subarray(s, s + len));
+    }
+    return null;
+  }
+
+  /** QZ-style direct read of a single telemetry packet (belt-and-braces fallback). */
+  function quickTelemetry(p) {
+    if (!p || p.length !== 20 || p[0] !== 0x00 || p[1] !== 0x12 || p[2] !== 0x01 || p[3] !== 0x04 || p[4] !== 0x02 || p[5] !== 0x2e) return null;
+    if (p[9] !== STATUS.DONE) return null;
+    let allFF = true; for (let i = 12; i < 20; i++) if (p[i] !== 0xff) allFF = false;
+    if (allFF) return null;
+    return { kph: decodeValue(F.KPH, p, 10), grade: decodeValue(F.GRADE, p, 12) };
+  }
+
+  // -------------------------------------------------------------- security
+  /** EquipmentUtil.CalculateSecurityHash, byte-truncating arithmetic throughout. */
+  function securityHash(serial, part, model) {
+    const out = new Uint8Array(32);
+    for (let b = 0; b < 32; b++) {
+      let v = (b + 1) & 0xff;
+      if ((serial >>> b) & 1) {
+        const p = b < 16 ? (((part << 16) | (part >>> 16)) >>> b) : (part >>> b);
+        v ^= p & 0xff;
+      } else {
+        v ^= (v * ((b + model) & 0xff)) & 0xff;
+      }
+      out[b] = v;
+    }
+    return out;
+  }
+
+  function verifySecurityFrame(hash32, masterLibraryVersion) {
+    return frame(DEV.TREADMILL, CMD.VERIFY_SECURITY, [...hash32, ...le(8 * masterLibraryVersion, 4)]);
+  }
+
+  function parseDeviceInfo(r) {
+    if (!isValidFrame(r) || r[3] !== STATUS.DONE || r[1] < 11) return null;
+    return { softwareVersion: r[4], serial: u32(r, 6) };
+  }
+  function parseSystemInfo(r) {
+    if (!isValidFrame(r) || r[3] !== STATUS.DONE || r[1] < 16) return null;
+    const model = u32(r, 7);
+    let part = u32(r, 11);
+    if (part === 370357 && model === 39915) part = 374677; // ICON's own fix-up for one production run
+    return { model, part };
+  }
+  function parseVersionInfo(r) {
+    if (!isValidFrame(r) || r[3] !== STATUS.DONE || r[1] < 6) return null;
+    return { masterLibraryVersion: r[4] };
+  }
+
+  const api = {
+    SERVICE, CH_WRITE, CH_NOTIFY, DEV, CMD, STATUS, STATUS_NAME, MODE, F, SIZE,
+    TELEMETRY_READS, STARTUP_READS, KNOWN_KEYS,
+    hex, fromHex, sum8, encodeValue, decodeValue, frame, section, rw, isValidFrame, parseReads,
+    wrap, packetize, packetsFor, Reassembler, unwrap, quickTelemetry,
+    securityHash, verifySecurityFrame, parseDeviceInfo, parseSystemInfo, parseVersionInfo, le, u32,
+  };
+  root.FP = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* sim.js — a simulated NordicTrack board that speaks the same FitPro/BLE protocol,
+ * wrapped in objects shaped like Web Bluetooth's (device → gatt → service → characteristic).
+ * Used for demo mode and for automated tests. It enforces the behaviours that matter:
+ * security lock until a correct VerifySecurity, the speed interlock while idle,
+ * whole-frame refusal on a bad field, and a belt that ramps instead of jumping. */
+(function (root) {
+  'use strict';
+  const FP = root.FP || (typeof require !== 'undefined' ? require('./proto.js') : null);
+  const { F, MODE, STATUS, CMD } = FP;
+  const WRITABLE = new Set([F.KPH, F.GRADE, F.MODE, F.GOAL_TIME, F.WEIGHT, F.IDLE_TIMEOUT, F.PAUSE_TIMEOUT, F.UNITS,
+    F.WARMUP_TIMEOUT, F.COOLDOWN_TIMEOUT, F.IDLE_LOCKOUT, F.ACTIVATION_LOCK]);
+  const READABLE = new Set([...WRITABLE, F.WATTS, F.CUR_DIST, F.PULSE, F.LAP_TIME, F.ACT_KPH, F.CUR_TIME, F.CUR_CAL,
+    F.MAX_GRADE, F.MIN_GRADE, F.MAX_KPH, F.MIN_KPH, F.MAX_WEIGHT, F.AVG_GRADE, F.AVG_WATTS, F.MOTOR_DIST, F.TOTAL_TIME,
+    F.VM_NET, F.VM_GAIN, F.IS_CLUB, F.START_REQ, F.PAUSED_TIME]);
+
+  class SimBoard {
+    constructor(opts = {}) {
+      this.opts = opts;
+      this.id = { sw: 80, serial: 3, model: 237, part: 0x00061234, mlv: 81, ...(opts.identity || {}) };
+      this.units = opts.units ?? 1;
+      this.locked = true;
+      this.v = { [F.MODE]: MODE.IDLE, [F.KPH]: 0, [F.GRADE]: 0, [F.IDLE_LOCKOUT]: 1, [F.PAUSE_TIMEOUT]: 600, [F.WARMUP_TIMEOUT]: 180,
+        [F.COOLDOWN_TIMEOUT]: 600, [F.IDLE_TIMEOUT]: 120, [F.GOAL_TIME]: 0, [F.WEIGHT]: 0, [F.UNITS]: this.units, [F.ACTIVATION_LOCK]: 0 };
+      this.limits = { minKph: 0.8, maxKph: 16.09, minGrade: 0, maxGrade: 10 };
+      this.belt = 0; this.incline = 0; this.dist = 0; this.time = 0;
+      this.ra = new FP.Reassembler();
+      this.emit = () => {};
+      this.log = opts.log || null;
+      this.timer = setInterval(() => this.physics(0.1), 100);
+    }
+    destroy() { clearInterval(this.timer); }
+
+    physics(dt) {
+      const mode = this.v[F.MODE];
+      const moving = mode === MODE.RUNNING || mode === MODE.WARMUP || mode === MODE.COOLDOWN;
+      const target = moving ? this.v[F.KPH] : 0;
+      const step = (moving ? 1.6 : 3.5) * dt;
+      this.belt += Math.max(-step, Math.min(step, target - this.belt));
+      if (Math.abs(target - this.belt) < 0.01) this.belt = target;
+      const gstep = 0.7 * dt;
+      this.incline += Math.max(-gstep, Math.min(gstep, this.v[F.GRADE] - this.incline));
+      this.dist += (this.belt / 3.6) * dt;
+      if (moving) this.time += dt;
+    }
+
+    receive(packet) {
+      const f = this.ra.feed(packet);
+      if (f) setTimeout(() => this.handle(f), 12);
+    }
+
+    reply(dev, cmd, status, data = []) {
+      const resp = FP.frame(dev, cmd, [status, ...data]);
+      const msg = new Uint8Array(resp.length + 4);
+      msg.set([0x01, 0x04, 0x02, resp.length]); msg.set(resp, 4);
+      FP.packetize(msg).forEach((p, i) => setTimeout(() => this.emit(p), 8 * (i + 1)));
+    }
+
+    handle(f) {
+      const dev = f[0], cmd = f[2];
+      const content = f.subarray(3, f[1] - 1);
+      if (this.opts.noIdentity && [CMD.DEVICE_INFO, CMD.SYSTEM_INFO, CMD.VERSION_INFO].includes(cmd)) return this.reply(dev, cmd, STATUS.CMD_NOT_SUPPORTED);
+      if (this.opts.dropAfterCmd === cmd && !this.dropped && this.onDrop) { this.dropped = true; setTimeout(() => this.onDrop(), 0); return; }
+      switch (cmd) {
+        case CMD.DEVICE_INFO: return this.reply(dev, cmd, STATUS.DONE, [this.id.sw, 0, ...FP.le(this.id.serial, 4), 0, 0]);
+        case CMD.SYSTEM_INFO: return this.reply(dev, cmd, STATUS.DONE, [0, 0, 0, ...FP.le(this.id.model, 4), ...FP.le(this.id.part, 4), 0, 0]);
+        case CMD.VERSION_INFO: return this.reply(dev, cmd, STATUS.DONE, [this.id.mlv, 0]);
+        case CMD.SUPPORTED_DEVICES: return this.reply(dev, cmd, STATUS.DONE, [2, 2, 4]);
+        case CMD.SUPPORTED_COMMANDS: return this.reply(dev, cmd, STATUS.DONE, [5, 2, 0x81, 0x82, 0x84, 0x90]);
+        case CMD.SERIAL_NUMBER: return this.reply(dev, cmd, STATUS.DONE, [0x31, 0x32, 0x33, 0x34]);
+        case CMD.VERIFY_SECURITY: {
+          const want = FP.verifySecurityFrame(FP.securityHash(this.id.serial, this.id.part, this.id.model), this.id.mlv);
+          const ok = FP.hex(want) === FP.hex(f.subarray(0, f[1]));
+          if (ok) this.locked = false;
+          return this.reply(dev, cmd, ok ? STATUS.DONE : STATUS.FAILED, [ok ? 1 : 0]);
+        }
+        case CMD.RW: return this.readWrite(dev, content);
+        default: return this.reply(dev, cmd, STATUS.CMD_NOT_SUPPORTED);
+      }
+    }
+
+    readWrite(dev, c) {
+      if (this.locked) return this.reply(dev, CMD.RW, STATUS.SECURITY_BLOCK);
+      let i = 0;
+      const ids = () => { const n = c[i++]; const out = []; for (let k = 0; k < n; k++, i++) for (let b = 0; b < 8; b++) if (c[i] & (1 << b)) out.push(k * 8 + b); return out; };
+      const writes = ids();
+      const vals = {};
+      for (const fid of writes) { vals[fid] = FP.decodeValue(fid, c, i); i += FP.SIZE[fid]; }
+      const reads = ids();
+      // whole-frame refusal on any bad field
+      for (const fid of writes) if (!WRITABLE.has(fid)) return this.reply(dev, CMD.RW, STATUS.FAILED);
+      for (const fid of reads) if (!READABLE.has(fid) || FP.SIZE[fid] == null) return this.reply(dev, CMD.RW, STATUS.FAILED);
+      if (F.KPH in vals && (vals[F.KPH] < 0 || vals[F.KPH] > this.limits.maxKph + 0.01)) return this.reply(dev, CMD.RW, STATUS.FAILED);
+      if (F.GRADE in vals && (vals[F.GRADE] < this.limits.minGrade - 0.01 || vals[F.GRADE] > this.limits.maxGrade + 0.01)) return this.reply(dev, CMD.RW, STATUS.FAILED);
+      if (F.MODE in vals && !this.canGo(this.v[F.MODE], vals[F.MODE])) return this.reply(dev, CMD.RW, STATUS.FAILED);
+      // apply: mode first, then the speed it enables
+      if (F.MODE in vals) {
+        let m = vals[F.MODE];
+        if (m === MODE.RESUME) m = MODE.RUNNING;
+        this.v[F.MODE] = m;
+        if (m === MODE.IDLE || m === MODE.RESULTS) { this.v[F.KPH] = 0; }
+        if (m === MODE.RESULTS) setTimeout(() => { if (this.v[F.MODE] === MODE.RESULTS) this.v[F.MODE] = MODE.IDLE; }, 8000);
+      }
+      for (const fid of writes) {
+        if (fid === F.MODE) continue;
+        if (fid === F.KPH) {
+          const m = this.v[F.MODE];
+          if (m === MODE.IDLE || m === MODE.RESULTS || m === MODE.PAUSE) continue; // interlock: accepted, ignored
+          this.v[F.KPH] = vals[fid] > 0 ? Math.max(this.limits.minKph, vals[fid]) : 0;
+          continue;
+        }
+        this.v[fid] = vals[fid];
+      }
+      const data = [];
+      for (const fid of reads) data.push(...FP.encodeValue(fid, this.read(fid)));
+      if (this.opts.silentWrites && writes.length && !reads.length) return; // firmware that never confirms writes
+      return this.reply(dev, CMD.RW, STATUS.DONE, data);
+    }
+
+    canGo(from, to) {
+      const M = MODE;
+      if (to === from) return true;
+      if (to === M.IDLE || to === M.RESULTS) return true;
+      if (to === M.RUNNING && from === M.IDLE && this.opts.idleOnlyWarmup) return false;
+      if (to === M.RUNNING || to === M.WARMUP) return [M.IDLE, M.PAUSE, M.RUNNING, M.WARMUP, M.COOLDOWN].includes(from);
+      if (to === M.PAUSE) return [M.RUNNING, M.WARMUP, M.COOLDOWN].includes(from);
+      if (to === M.RESUME) return from === M.PAUSE;
+      if (to === M.COOLDOWN) return [M.RUNNING, M.WARMUP].includes(from);
+      return false;
+    }
+
+    read(fid) {
+      switch (fid) {
+        case F.ACT_KPH: return this.belt;
+        case F.CUR_DIST: return Math.round(this.dist);
+        case F.CUR_TIME: return Math.round(this.time);
+        case F.WATTS: return Math.round(this.belt * 12 + this.incline * 8);
+        case F.MAX_KPH: return this.limits.maxKph;
+        case F.MIN_KPH: return this.limits.minKph;
+        case F.MAX_GRADE: return this.limits.maxGrade;
+        case F.MIN_GRADE: return this.limits.minGrade;
+        case F.GRADE: return this.v[F.GRADE];
+        default: return this.v[fid] ?? 0;
+      }
+    }
+
+    // test hook: pull the safety key
+    pullKey() { this.v[F.MODE] = MODE.DMK; this.v[F.KPH] = 0; }
+  }
+
+  // ---- Web Bluetooth-shaped wrappers -------------------------------------------------
+  class SimCharacteristic extends EventTarget {
+    constructor(uuid, props) { super(); this.uuid = uuid; this.properties = props; this.value = null; this.notifying = false; }
+    async startNotifications() { this.notifying = true; return this; }
+    async stopNotifications() { this.notifying = false; return this; }
+    _push(bytes) {
+      if (!this.notifying) return;
+      this.value = new DataView(Uint8Array.from(bytes).buffer);
+      this.dispatchEvent(new Event('characteristicvaluechanged'));
+    }
+  }
+
+  class SimDevice extends EventTarget {
+    constructor(opts = {}) {
+      super();
+      this.id = 'sim-' + Math.random().toString(36).slice(2, 8);
+      this.name = 'I_TL';
+      const dev = this;
+      this.board = null;
+      const notify = new SimCharacteristic(FP.CH_NOTIFY, { notify: true, read: true });
+      const write = new SimCharacteristic(FP.CH_WRITE, { write: true, read: true, writeWithoutResponse: false });
+      const deliver = async (data) => {
+        if (!dev.gatt.connected) throw new DOMException('GATT Server is disconnected.', 'NetworkError');
+        await new Promise((r) => setTimeout(r, 6));
+        const u8 = data instanceof Uint8Array ? data.slice() : new Uint8Array(data.buffer ? data.buffer : data);
+        dev.board.receive(u8);
+      };
+      write.writeValueWithResponse = deliver;
+      write.writeValueWithoutResponse = deliver;
+      write.writeValue = deliver;
+      const service = { uuid: FP.SERVICE, getCharacteristic: async (u) => (u === FP.CH_WRITE ? write : u === FP.CH_NOTIFY ? notify : Promise.reject(new DOMException('No characteristic', 'NotFoundError'))) };
+      this.gatt = {
+        device: dev,
+        connected: false,
+        async connect() {
+          await new Promise((r) => setTimeout(r, 250));
+          if (!dev.board) { dev.board = new SimBoard(opts); dev.board.emit = (p) => notify._push(p); dev.board.onDrop = () => dev.dropLink(); }
+          this.connected = true; return this;
+        },
+        disconnect() {
+          if (!this.connected) return;
+          this.connected = false;
+          setTimeout(() => dev.dispatchEvent(new Event('gattserverdisconnected')), 0);
+        },
+        async getPrimaryService(u) { if (u !== FP.SERVICE) throw new DOMException('No service', 'NotFoundError'); return service; },
+      };
+    }
+    // test hook: simulate the treadmill dropping the link (e.g. switched off)
+    dropLink() { this.gatt.disconnect(); }
+  }
+
+  const api = { SimBoard, SimDevice };
+  root.Sim = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+</script>
+<script>
+/* app.js — Cinta: routines for a NordicTrack/iFit treadmill over Web Bluetooth. */
+(function () {
+  'use strict';
+  const FP = window.FP, Sim = window.Sim;
+  const { F, MODE: M, STATUS } = FP;
+  const VERSION = '1.0.0';
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const params = new URLSearchParams(location.search);
+  const TIME_SCALE = Math.max(1, Number(params.get('x')) || 1); // demo/test only
+
+  // Only a frame that explicitly denies Bluetooth counts as blocked (e.g. an embedded preview).
+  // At top level we let Chrome decide and translate any error it gives.
+  const IN_FRAME = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+  const BT_POLICY = (() => {
+    if (!IN_FRAME) return true;
+    try {
+      const fp = document.permissionsPolicy || document.featurePolicy;
+      if (!fp || !fp.allowsFeature) return true;
+      const known = typeof fp.features === 'function' ? fp.features().includes('bluetooth') : true;
+      return !known || fp.allowsFeature('bluetooth');
+    } catch (e) { return true; }
+  })();
+  const BT_OK = !!navigator.bluetooth && BT_POLICY;
+  function btError(e) {
+    const n = e && e.name;
+    if (n === 'SecurityError') return 'Esta vista no puede usar Bluetooth. Abre la app desde su propia dirección en Chrome.';
+    if (n === 'NotAllowedError') return 'Chrome no tiene permiso de Bluetooth. En Android ve a Ajustes › Apps › Chrome › Permisos y permite «Dispositivos cercanos» (o Ubicación).';
+    if (n === 'NetworkError') return 'No se pudo conectar. Acércate a la cinta, revisa que esté encendida y vuelve a intentar.';
+    if (n === 'NotFoundError') return 'Ese dispositivo no tiene el servicio de la cinta. Elige el que se llama «I_TL».';
+    if (n === 'NotSupportedError') return 'Este teléfono no soporta la conexión que usa la cinta.';
+    return (e && e.message) || String(e);
+  }
+
+  // ------------------------------------------------------------------ storage + settings
+  const Store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  };
+  const DEF = { unit: 'kmh', maxKph: 12, startFromApp: true, voice: true, beeps: true, warnSec: 10, wake: true, unlock: 'auto', showAll: false, raw: false };
+  const settings = Object.assign({}, DEF, Store.get('cinta.settings', {}));
+  const saveSettings = () => Store.set('cinta.settings', settings);
+
+  // ------------------------------------------------------------------ units + format
+  const KM_PER_MI = 1.609344;
+  const isMph = () => settings.unit === 'mph';
+  const toDisp = (kph) => (isMph() ? kph / KM_PER_MI : kph);
+  const fromDisp = (v) => (isMph() ? v * KM_PER_MI : v);
+  const uLabel = () => (isMph() ? 'mph' : 'km/h');
+  const f1 = (n) => (Math.round(n * 10) / 10).toFixed(1);
+  const fSpd = (kph) => (kph == null ? '–' : f1(toDisp(kph)));
+  const fSpdU = (kph) => `${fSpd(kph)} ${uLabel()}`;
+  const fGrade = (g) => (g == null ? '–' : f1(g));
+  const fClock = (sec) => {
+    sec = Math.max(0, Math.round(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+  };
+  const fDur = (sec) => { sec = Math.round(sec); const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), x = sec % 60; if (h) return `${h} h ${String(m).padStart(2, '0')} min`; return x ? `${m}:${String(x).padStart(2, '0')} min` : `${m} min`; };
+  const fDist = (m) => (isMph() ? `${(m / 1609.344).toFixed(2)} mi` : `${(m / 1000).toFixed(2)} km`);
+  const fPace = (kph) => { const v = toDisp(kph || 0); if (v < 0.8) return '–'; const s = Math.round(3600 / v); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const spdStep = () => (isMph() ? 0.2 : 0.5);
+  const sayNum = (n) => String(Math.round(n * 10) / 10);
+  const speedPhrase = (kph) => `${sayNum(toDisp(kph))} ${isMph() ? 'millas' : 'kilómetros'} por hora`;
+  const gradePhrase = (g) => (g <= 0.05 ? 'sin inclinación' : `inclinación ${sayNum(g)} por ciento`);
+
+  // ------------------------------------------------------------------ log
+  const Log = {
+    lines: [], raw: [],
+    stamp() { const d = new Date(); return d.toTimeString().slice(0, 8) + '.' + String(d.getMilliseconds()).padStart(3, '0'); },
+    add(kind, text) {
+      this.lines.push({ t: this.stamp(), kind, text });
+      if (this.lines.length > 400) this.lines.splice(0, this.lines.length - 400);
+      UI.logChanged();
+    },
+    packet(dir, bytes) {
+      this.raw.push({ t: this.stamp(), kind: dir, text: (dir === 'tx' ? '→ ' : '← ') + FP.hex(bytes) });
+      if (this.raw.length > 500) this.raw.splice(0, this.raw.length - 500);
+      if (settings.raw) UI.logChanged();
+    },
+    text() {
+      const all = [...this.lines.map((l) => `${l.t} ${l.kind.toUpperCase().padEnd(4)} ${l.text}`)];
+      all.push('', '--- últimos paquetes ---', ...this.raw.map((l) => `${l.t} ${l.text}`));
+      return all.join('\n');
+    },
+  };
+
+  // ------------------------------------------------------------------ BLE link
+  class Link {
+    constructor() { this.q = []; this.busy = false; this.pending = null; this.alive = false; this.ra = new FP.Reassembler(); this.onFrame = null; this.onQuick = null; }
+    async open(device) {
+      const server = await withTimeout(device.gatt.connect(), 20000, 'La cinta no respondió al conectar');
+      const svc = await server.getPrimaryService(FP.SERVICE);
+      this.wc = await svc.getCharacteristic(FP.CH_WRITE);
+      const nc = await svc.getCharacteristic(FP.CH_NOTIFY);
+      if (this.nc && this._h) this.nc.removeEventListener('characteristicvaluechanged', this._h);
+      this.nc = nc;
+      this._h = (e) => this.onPacket(e.target.value);
+      nc.addEventListener('characteristicvaluechanged', this._h);
+      await nc.startNotifications();
+      this.ra = new FP.Reassembler();
+      this.alive = true;
+    }
+    close() {
+      this.alive = false;
+      if (this.pending) { const p = this.pending; this.pending = null; p.resolve(null); }
+      this.q.splice(0).forEach((it) => it.resolve(null));
+    }
+    onPacket(dv) {
+      const p = new Uint8Array(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength));
+      Log.packet('rx', p);
+      const quick = FP.quickTelemetry(p);
+      if (quick && this.onQuick) this.onQuick(quick);
+      const f = this.ra.feed(p);
+      if (!f) return;
+      const pd = this.pending;
+      if (pd && f[2] === pd.cmd && (pd.expectLen == null || f[1] === pd.expectLen || f[3] !== STATUS.DONE)) { this.pending = null; pd.resolve(f); }
+      else if (this.onFrame) this.onFrame(f);
+    }
+    request(frame, opts = {}) {
+      return new Promise((resolve) => {
+        if (!this.alive) return resolve(null);
+        const item = { frame, opts, resolve };
+        if (opts.priority) { const i = this.q.findIndex((x) => !x.opts.priority); i < 0 ? this.q.push(item) : this.q.splice(i, 0, item); }
+        else this.q.push(item);
+        this.pump();
+      });
+    }
+    async pump() {
+      if (this.busy) return;
+      this.busy = true;
+      try { while (this.q.length && this.alive) { const it = this.q.shift(); it.resolve(await this.exec(it)); } }
+      finally { this.busy = false; }
+      if (!this.alive) this.q.splice(0).forEach((it) => it.resolve(null));
+    }
+    async exec({ frame, opts }) {
+      let done; const resp = new Promise((r) => (done = r));
+      this.pending = { cmd: frame[2], expectLen: opts.expectLen, resolve: done };
+      try { for (const p of FP.packetsFor(frame)) await this.write(p); }
+      catch (e) { this.pending = null; Log.add('err', `Error al enviar (${opts.label || 'comando'}): ${e.message}`); await sleep(150); return null; }
+      const r = await Promise.race([resp, sleep(opts.timeout ?? 1200).then(() => null)]);
+      if (this.pending && this.pending.resolve === done) this.pending = null;
+      await sleep(opts.gap ?? 50);
+      return r;
+    }
+    async write(p) {
+      Log.packet('tx', p);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const c = this.wc;
+          if (c.properties && !c.properties.write && c.properties.writeWithoutResponse && c.writeValueWithoutResponse) await c.writeValueWithoutResponse(p);
+          else if (c.writeValueWithResponse) await c.writeValueWithResponse(p);
+          else await c.writeValue(p);
+          return;
+        } catch (e) {
+          if (attempt >= 2 || !this.alive) throw e;
+          await sleep(120);
+        }
+      }
+    }
+  }
+  function withTimeout(promise, ms, msg) {
+    return Promise.race([promise, new Promise((_, rej) => setTimeout(() => rej(new Error(msg)), ms))]);
+  }
+
+  // ------------------------------------------------------------------ treadmill
+  const TEL_LEN = 4 + FP.TELEMETRY_READS.reduce((a, f) => a + FP.SIZE[f], 0) + 1;
+  const MOVING = new Set([M.RUNNING, M.WARMUP, M.COOLDOWN]);
+  // 'warmup' reproduces the official iFit app on a T6.5S (setup fields, then {Kph, Grade, WarmUp}, then Running).
+  const START_METHODS = ['warmup', 'running', 'setup-running'];
+
+  class Treadmill {
+    constructor() {
+      this.link = new Link();
+      this.link.onFrame = (f) => this.onUnsolicited(f);
+      this.link.onQuick = (q) => this.onQuick(q);
+      this.s = { phase: 'off', demo: false, name: '', mode: null, kph: null, grade: null, dist: null, time: null, watts: null, unlocked: null,
+        limits: { minKph: 0.8, maxKph: 16.1, minGrade: 0, maxGrade: 10 }, boardUnits: null, lastTel: 0, lastStatus: null, unlockHow: '', localTime: 0, localDist: 0 };
+      this.identity = {};
+      this.ls = {};
+      this.guardUntil = 0;
+      this.lastUnlock = 0;
+      this.startMethod = Store.get('cinta.startMethod', null);
+    }
+    on(ev, fn) { (this.ls[ev] = this.ls[ev] || []).push(fn); }
+    emit(ev, d) { (this.ls[ev] || []).forEach((fn) => { try { fn(d); } catch (e) { console.error(e); } }); }
+    setPhase(p) { this.s.phase = p; this.emit('phase', p); }
+    get ready() { return this.s.phase === 'ready'; }
+    isMoving() { const m = this.s.mode; return MOVING.has(m) || (m == null && (this.s.kph || 0) > 0); }
+    guard(ms = 6000) { this.guardUntil = Date.now() + ms; }
+
+    async connect(demo) {
+      if (!['off', 'lost'].includes(this.s.phase)) return false;
+      this.userClosed = false;
+      let device;
+      if (demo) device = new Sim.SimDevice(window.CINTA_SIM_OPTS || {});
+      else {
+        if (!navigator.bluetooth) throw new Error('Este navegador no tiene Bluetooth web. Usa Chrome en Android.');
+        if (!BT_POLICY) throw new Error('Esta vista no puede usar Bluetooth. Abre la app desde su propia dirección en Chrome.');
+        const opts = settings.showAll
+          ? { acceptAllDevices: true, optionalServices: [FP.SERVICE] }
+          : { filters: [{ namePrefix: 'I_TL' }, { services: [FP.SERVICE] }], optionalServices: [FP.SERVICE] };
+        this.setPhase('connecting');
+        try { device = await navigator.bluetooth.requestDevice(opts); }
+        catch (e) { this.setPhase('off'); if (e.name === 'NotFoundError' || e.name === 'AbortError') return false; throw new Error(btError(e)); }
+      }
+      if (this.device && this.device !== device && this._onDisc) this.device.removeEventListener('gattserverdisconnected', this._onDisc);
+      this.device = device;
+      this.s.demo = !!demo;
+      this.s.name = device.name || 'Cinta';
+      this._onDisc = () => this.onDisconnected();
+      device.addEventListener('gattserverdisconnected', this._onDisc);
+      try { await this.open(); }
+      catch (e) { this.userClosed = true; try { device.gatt.disconnect(); } catch (_) {} this.link.close(); this.setPhase('off'); throw new Error(btError(e)); }
+      return true;
+    }
+
+    async open() {
+      this.setPhase('handshake');
+      Log.add('info', `Conectando con ${this.s.name}${this.s.demo ? ' (demostración)' : ''}…`);
+      await this.link.open(this.device);
+      Log.add('ok', 'Enlace Bluetooth listo. Identificando la cinta…');
+      await this.handshake();
+      if (!this.link.alive) throw new Error('Se perdió la conexión durante la configuración. Vuelve a intentar.');
+      this.setPhase('ready');
+      this.startPolling();
+    }
+
+    onDisconnected() {
+      this.polling = false;
+      this.link.close();
+      Object.assign(this.s, { mode: null, kph: null, grade: null });
+      if (this.userClosed) { this.setPhase('off'); Log.add('info', 'Desconectada.'); return; }
+      Log.add('err', 'Se perdió la conexión con la cinta.');
+      this.setPhase('lost');
+      this.emit('lost');
+      this.autoReconnect();
+    }
+
+    async autoReconnect() {
+      if (this.reconnecting) return;
+      this.reconnecting = true;
+      try {
+        for (let i = 1; i <= 4; i++) {
+          await sleep(1500 * i);
+          if (this.userClosed || this.s.phase !== 'lost') return;
+          try { Log.add('info', `Reintentando conexión (${i}/4)…`); await this.open(); Log.add('ok', 'Reconectada.'); this.emit('reconnected'); return; }
+          catch (e) { this.link.close(); Log.add('err', `No se pudo reconectar: ${e.message}`); this.setPhase('lost'); }
+        }
+      } finally { this.reconnecting = false; }
+    }
+
+    async reconnectNow() {
+      if (this.s.phase !== 'lost' || this.reconnecting) return;
+      this.userClosed = false;
+      try { await this.open(); this.emit('reconnected'); }
+      catch (e) { this.link.close(); Log.add('err', `No se pudo reconectar: ${e.message}`); this.setPhase('lost'); throw e; }
+    }
+
+    disconnect() {
+      this.userClosed = true;
+      this.polling = false;
+      try { if (this.device && this.device.gatt.connected) this.device.gatt.disconnect(); } catch (e) {}
+      if (this.s.demo && this.device && this.device.board) { this.device.board.destroy(); this.device.board = null; }
+      setTimeout(() => { if (this.s.phase !== 'off') { this.link.close(); this.setPhase('off'); } }, 400);
+    }
+
+    async q(frame, label, extra = {}) {
+      if (!this.link.alive) throw new Error('Se perdió la conexión durante la configuración. Vuelve a intentar.');
+      return this.link.request(frame, { label, timeout: 1500, ...extra });
+    }
+
+    async handshake() {
+      const { DEV, CMD } = FP;
+      const id = (this.identity = {});
+      const di = await this.q(FP.frame(DEV.MAIN, CMD.DEVICE_INFO), 'información del equipo');
+      id.device = FP.parseDeviceInfo(di);
+      await this.q(FP.frame(DEV.TREADMILL, CMD.SUPPORTED_DEVICES), 'dispositivos');
+      await this.q(FP.frame(DEV.TREADMILL, CMD.SUPPORTED_COMMANDS), 'comandos');
+      const si = await this.q(FP.frame(DEV.MAIN, CMD.SYSTEM_INFO, [0, 0]), 'sistema');
+      id.system = FP.parseSystemInfo(si);
+      const vi = await this.q(FP.frame(DEV.MAIN, CMD.VERSION_INFO, [0, 0]), 'versión');
+      id.version = FP.parseVersionInfo(vi);
+      await this.q(FP.frame(DEV.MAIN, CMD.SERIAL_NUMBER), 'número de serie');
+      if (id.device || id.system || id.version) {
+        Log.add('ok', `Equipo: software ${id.device ? id.device.softwareVersion : '?'}, modelo ${id.system ? id.system.model : '?'}, pieza ${id.system ? id.system.part : '?'}, librería v${id.version ? id.version.masterLibraryVersion : '?'}`);
+      } else {
+        Log.add('err', 'La cinta no respondió a la identificación; se usarán claves conocidas.');
+      }
+      await this.unlock();
+      const sr = await this.q(FP.rw([], FP.STARTUP_READS), 'límites');
+      const v = sr && FP.parseReads(sr, FP.STARTUP_READS);
+      if (v) {
+        const L = this.s.limits;
+        if (v[F.MAX_KPH] > 3 && v[F.MAX_KPH] < 30) L.maxKph = v[F.MAX_KPH];
+        if (v[F.MIN_KPH] > 0 && v[F.MIN_KPH] < 5) L.minKph = v[F.MIN_KPH];
+        if (v[F.MAX_GRADE] != null && v[F.MAX_GRADE] > 0 && v[F.MAX_GRADE] <= 40) L.maxGrade = v[F.MAX_GRADE];
+        if (v[F.MIN_GRADE] != null && v[F.MIN_GRADE] >= -10 && v[F.MIN_GRADE] <= 0) L.minGrade = v[F.MIN_GRADE];
+        if (v[F.UNITS] != null) this.s.boardUnits = v[F.UNITS] ? 'metric' : 'imperial';
+        if (v[F.MODE] != null) this.s.mode = v[F.MODE];
+        Log.add('ok', `Límites: ${f1(L.minKph)}–${f1(L.maxKph)} km/h, ${f1(L.minGrade)}–${f1(L.maxGrade)} %`);
+      }
+      await this.q(FP.rw([[F.IDLE_LOCKOUT, 0]]), 'mantener activa', { expectLen: 5 });
+    }
+
+    unlockAttempts() {
+      const id = this.identity;
+      const out = [];
+      const mlv = id.version && id.version.masterLibraryVersion;
+      if (settings.unlock === 'auto' && id.device && id.system && id.version) {
+        out.push({ how: 'calculada', frame: FP.verifySecurityFrame(FP.securityHash(id.device.serial, id.system.part, id.system.model), mlv) });
+      }
+      const order = settings.unlock === 'v83' || mlv === 83 ? ['v83', 'v81'] : ['v81', 'v83'];
+      for (const k of order) out.push({ how: `clave ${k}`, frame: FP.verifySecurityFrame(FP.fromHex(FP.KNOWN_KEYS[k]), k === 'v81' ? 81 : 83) });
+      return out;
+    }
+
+    async unlock() {
+      this.lastUnlock = Date.now();
+      const id = this.identity;
+      const sw = id.device && id.device.softwareVersion;
+      if (settings.unlock === 'auto' && sw != null && sw <= 75) { Log.add('ok', 'Esta cinta no necesita desbloqueo.'); this.s.unlocked = true; this.s.unlockHow = 'no requerido'; return true; }
+      let anyReply = false;
+      for (const a of this.unlockAttempts()) {
+        const r = await this.q(a.frame, `desbloqueo (${a.how})`);
+        if (r) anyReply = true;
+        if (r && r[3] === STATUS.DONE) { this.s.unlocked = true; this.s.unlockHow = a.how; Log.add('ok', `Cinta desbloqueada (${a.how}).`); return true; }
+      }
+      this.s.unlocked = anyReply ? false : null;
+      this.s.unlockHow = anyReply ? 'rechazado' : 'sin respuesta';
+      Log.add('err', anyReply ? 'La cinta rechazó el desbloqueo. Prueba otra opción en Ajustes › Desbloqueo.' : 'La cinta no respondió al desbloqueo; se intentará igual.');
+      return false;
+    }
+
+    startPolling() {
+      if (this.polling) return;
+      this.polling = true;
+      this.missed = 0;
+      (async () => {
+        while (this.polling && this.link.alive) {
+          const r = await this.link.request(FP.rw([], FP.TELEMETRY_READS), { label: 'lectura', timeout: 1000, expectLen: TEL_LEN, gap: 40 });
+          if (!this.polling) break;
+          this.onTelemetry(r);
+          await sleep(260);
+        }
+      })();
+    }
+
+    onTelemetry(r) {
+      if (!r) { if (++this.missed === 8) { Log.add('err', 'La cinta no responde a las lecturas.'); this.emit('stale'); } return; }
+      if (r[3] === STATUS.SECURITY_BLOCK) {
+        this.s.unlocked = false;
+        const wait = Math.min(30000, 3000 * 2 ** (this.unlockFails || 0));
+        if (Date.now() - this.lastUnlock > wait) {
+          Log.add('info', 'La cinta pidió desbloqueo de nuevo.');
+          this.unlock().then((ok) => { this.unlockFails = ok ? 0 : (this.unlockFails || 0) + 1; });
+        }
+        return;
+      }
+      const v = FP.parseReads(r, FP.TELEMETRY_READS);
+      if (!v) return;
+      this.missed = 0;
+      const s = this.s;
+      const wasMoving = this.isMoving();
+      const now = Date.now();
+      if (wasMoving && s.lastTel) { const dt = Math.min(3, (now - s.lastTel) / 1000); s.localTime += dt; s.localDist += ((s.kph || 0) / 3.6) * dt; }
+      if (v[F.KPH] != null) s.kph = v[F.KPH];
+      if (v[F.GRADE] != null) s.grade = v[F.GRADE];
+      if (v[F.MODE] != null) s.mode = v[F.MODE];
+      if (v[F.CUR_DIST] != null) s.dist = v[F.CUR_DIST];
+      if (v[F.CUR_TIME] != null) s.time = v[F.CUR_TIME];
+      if (v[F.WATTS] != null) s.watts = v[F.WATTS];
+      if (!wasMoving && this.isMoving() && (this.prevMode === M.IDLE || this.prevMode === M.RESULTS || this.prevMode == null)) { s.localTime = 0; s.localDist = 0; }
+      // if we started in warm-up and the board stayed there, keep nudging it to Running (the iFit app does this itself)
+      if (s.mode === M.WARMUP && this.appWarmup) {
+        this.warmSince = this.warmSince || now;
+        if (now - this.warmSince > 60000 && now - (this.warmFix || 0) > 60000) { this.warmFix = now; this.write([[F.MODE, M.RUNNING]], 'pasar a modo carrera'); }
+      } else { this.warmSince = 0; if (s.mode !== M.WARMUP) this.appWarmup = false; }
+      this.prevMode = s.mode;
+      s.lastTel = now;
+      this.emit('telemetry', s);
+    }
+    onQuick(q) {
+      if (Date.now() - this.s.lastTel < 2500) return;
+      if (q.kph != null) this.s.kph = q.kph;
+      if (q.grade != null) this.s.grade = q.grade;
+      this.emit('telemetry', this.s);
+    }
+    onUnsolicited(f) { if (f[2] === FP.CMD.RW && f[1] === TEL_LEN) this.onTelemetry(f); }
+
+    clampKph(k) { const L = this.s.limits; const max = Math.min(L.maxKph, settings.maxKph); return Math.round(clamp(k, L.minKph, Math.max(L.minKph, max)) * 100) / 100; }
+    clampGrade(g) { const L = this.s.limits; return Math.round(clamp(g, L.minGrade, L.maxGrade) * 10) / 10; }
+
+    async write(writes, label) {
+      if (!this.ready) { Log.add('err', `${label}: la cinta no está conectada.`); return null; }
+      const frame = FP.rw(writes, []);
+      let r = await this.link.request(frame, { label, priority: true, timeout: 1500, expectLen: 5 });
+      if (r && r[3] === STATUS.SECURITY_BLOCK) {
+        Log.add('info', 'La cinta pidió desbloqueo; reintentando.');
+        await this.unlock();
+        r = await this.link.request(frame, { label, priority: true, timeout: 1500, expectLen: 5 });
+      }
+      const st = r ? r[3] : null;
+      this.s.lastStatus = st;
+      if (st === STATUS.DONE) Log.add('ok', `${label}: aceptado.`);
+      else if (st == null) Log.add('info', `${label}: enviado (sin confirmación).`);
+      else Log.add('err', `${label}: ${FP.STATUS_NAME[st] || 'estado ' + st}.`);
+      this.emit('command', { label, status: st });
+      return st;
+    }
+
+    async waitFor(pred, ms) { const end = Date.now() + ms; while (Date.now() < end) { if (pred()) return true; await sleep(150); } return pred(); }
+
+    setTarget(kph, grade) {
+      const w = [];
+      if (kph != null) w.push([F.KPH, this.clampKph(kph)]);
+      if (grade != null) w.push([F.GRADE, this.clampGrade(grade)]);
+      if (!w.length) return Promise.resolve(null);
+      const parts = [];
+      if (kph != null) parts.push(fSpdU(this.clampKph(kph)));
+      if (grade != null) parts.push(`${fGrade(this.clampGrade(grade))} %`);
+      return this.write(w, `objetivo ${parts.join(' · ')}`);
+    }
+
+    async startBelt(kph, grade) {
+      const k = this.clampKph(kph);
+      const g = this.clampGrade(grade != null ? grade : this.s.grade || 0);
+      if (this.isMoving()) { await this.setTarget(k, g); return true; }
+      if (this.s.mode === M.DMK) throw new Error('Coloca la llave de seguridad en la consola.');
+      if (this.s.mode === M.PAUSE) return this.resume(k, g);
+      if (this.s.mode != null && this.s.mode !== M.IDLE) { await this.write([[F.MODE, M.IDLE]], 'preparar (a reposo)'); await sleep(700); }
+      const methods = this.startMethod ? [this.startMethod, ...START_METHODS.filter((m) => m !== this.startMethod)] : START_METHODS;
+      for (const how of methods) {
+        if (!this.ready) return false;
+        this.guard(9000);
+        if (how === 'setup-running' || how === 'warmup') {
+          await this.write([[F.PAUSE_TIMEOUT, 600], [F.WARMUP_TIMEOUT, 180], [F.COOLDOWN_TIMEOUT, 600]], 'preparar entrenamiento');
+        }
+        const mode = how === 'warmup' ? M.WARMUP : M.RUNNING;
+        await this.write([[F.KPH, k], [F.GRADE, g], [F.MODE, mode]], `arrancar a ${fSpdU(k)}${how === 'warmup' ? ' (calentamiento)' : ''}`);
+        if (await this.waitFor(() => this.isMoving(), 3500)) {
+          if (this.startMethod !== how) { this.startMethod = how; Store.set('cinta.startMethod', how); }
+          if (this.s.mode === M.WARMUP) { this.appWarmup = true; await sleep(1200); await this.write([[F.MODE, M.RUNNING]], 'pasar a modo carrera'); }
+          await this.setTarget(k, g);
+          return true;
+        }
+        Log.add('info', 'La banda no arrancó con ese método; probando otro…');
+      }
+      return false;
+    }
+
+    async pause() {
+      this.guard();
+      await this.write([[F.MODE, M.PAUSE]], 'pausa');
+      if (await this.waitFor(() => !this.isMoving(), 2500)) return true;
+      await this.write([[F.KPH, 0]], 'pausa (velocidad 0)');
+      return this.waitFor(() => !this.isMoving() || this.s.kph === 0, 2500);
+    }
+
+    async resume(kph, grade) {
+      this.guard(9000);
+      await this.write([[F.MODE, M.RUNNING]], 'reanudar');
+      if (!(await this.waitFor(() => this.isMoving(), 3000))) {
+        await this.write([[F.MODE, M.RESUME]], 'reanudar (modo «resume»)');
+        await this.waitFor(() => this.isMoving(), 3000);
+      }
+      if (!this.isMoving()) return false;
+      await this.setTarget(kph, grade);
+      return true;
+    }
+
+    async stop() {
+      this.guard();
+      await this.write([[F.MODE, M.RESULTS]], 'terminar');
+      if (await this.waitFor(() => !this.isMoving(), 3000)) return true;
+      await this.write([[F.MODE, M.PAUSE]], 'detener (pausa)');
+      if (await this.waitFor(() => !this.isMoving(), 3000)) return true;
+      await this.write([[F.KPH, 0]], 'detener (velocidad 0)');
+      return this.waitFor(() => !this.isMoving() || this.s.kph === 0, 3000);
+    }
+  }
+  const tm = new Treadmill();
+
+  // ------------------------------------------------------------------ voice, beeps, screen
+  const Voice = {
+    ctx: null, voice: null,
+    prime() {
+      try { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (this.ctx.state === 'suspended') this.ctx.resume(); } catch (e) {}
+      this.pick();
+    },
+    pick() {
+      try {
+        const vs = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+        this.voice = vs.find((v) => /^es[-_]MX/i.test(v.lang)) || vs.find((v) => /^es[-_](US|419)/i.test(v.lang)) || vs.find((v) => /^es/i.test(v.lang)) || null;
+      } catch (e) {}
+    },
+    beep(freq = 660, dur = 0.12) {
+      if (!settings.beeps || !this.ctx) return;
+      try {
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain(), t = this.ctx.currentTime;
+        o.frequency.value = freq; o.type = 'sine';
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g).connect(this.ctx.destination); o.start(t); o.stop(t + dur + 0.02);
+      } catch (e) {}
+    },
+    say(text) {
+      if (!settings.voice || !window.speechSynthesis) return;
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = (this.voice && this.voice.lang) || 'es-MX';
+        if (this.voice) u.voice = this.voice;
+        u.rate = 1.02;
+        speechSynthesis.speak(u);
+      } catch (e) {}
+    },
+    hush() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} },
+  };
+  if (window.speechSynthesis) try { speechSynthesis.addEventListener('voiceschanged', () => Voice.pick()); } catch (e) {}
+
+  const Wake = {
+    lock: null,
+    async on() { if (!settings.wake || !('wakeLock' in navigator) || this.lock) return; try { this.lock = await navigator.wakeLock.request('screen'); this.lock.addEventListener('release', () => (this.lock = null)); } catch (e) {} },
+    off() { try { this.lock && this.lock.release(); } catch (e) {} this.lock = null; },
+  };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && (tm.ready || App.runner)) Wake.on(); });
+
+  // ------------------------------------------------------------------ routines
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const seg = (name, dur, kph, grade) => ({ name, dur, kph, grade });
+  function samples() {
+    const intervals = [seg('Calentamiento', 240, 4.5, 1)];
+    for (let i = 0; i < 6; i++) intervals.push(seg('Rápido', 120, 6.0, 2), seg('Suave', 120, 4.8, 1));
+    intervals.push(seg('Enfriamiento', 120, 4.0, 0));
+    const hill = [seg('Calentamiento', 240, 4.8, 1)];
+    [2, 3, 4, 5, 6, 5, 4, 3].forEach((g) => hill.push(seg(`Cuesta ${g} %`, 120, 5.2, g)));
+    hill.push(seg('Enfriamiento', 300, 4.5, 0));
+    const jog = [seg('Calentamiento', 180, 5.0, 1)];
+    for (let i = 0; i < 4; i++) jog.push(seg('Trote', 180, 7.5, 1), seg('Caminata', 60, 5.5, 1));
+    jog.push(seg('Enfriamiento', 60, 4.5, 0));
+    return [
+      { id: uid(), name: 'Prueba rápida', segments: [seg('Inicio', 60, 3.0, 0), seg('Un poco más', 60, 4.0, 1), seg('Final', 60, 3.0, 0)] },
+      { id: uid(), name: 'Caminata con intervalos', segments: intervals },
+      { id: uid(), name: 'Cuesta progresiva', segments: hill },
+      { id: uid(), name: 'Trote suave', segments: jog },
+    ];
+  }
+  let routines = Store.get('cinta.routines', null);
+  if (!Array.isArray(routines)) { routines = samples(); Store.set('cinta.routines', routines); }
+  const saveRoutines = () => Store.set('cinta.routines', routines);
+  const totalSec = (r) => r.segments.reduce((a, s) => a + s.dur, 0);
+  const estDist = (r) => r.segments.reduce((a, s) => a + (s.kph / 3.6) * s.dur, 0);
+  const maxKph = (r) => r.segments.reduce((a, s) => Math.max(a, s.kph), 0);
+  function sanitize(r) {
+    if (!r || !Array.isArray(r.segments)) return null;
+    const segs = r.segments.map((s) => seg(String(s.name || 'Tramo').slice(0, 40), clamp(Math.round(+s.dur || 60), 5, 7200), clamp(+s.kph || 3, 0.8, 25), clamp(+s.grade || 0, -5, 20))).filter((s) => isFinite(s.kph));
+    if (!segs.length) return null;
+    return { id: uid(), name: String(r.name || 'Rutina').slice(0, 60), segments: segs };
+  }
+
+  // ------------------------------------------------------------------ profile drawing
+  const drawn = new Map();
+  const ro = 'ResizeObserver' in window ? new ResizeObserver((es) => es.forEach((e) => { const fn = drawn.get(e.target); if (fn) fn(); })) : null;
+  function profile(el, segs, opts = {}) {
+    const draw = () => {
+      const W = el.clientWidth, H = el.clientHeight;
+      if (!W || !H || !segs.length) { el.innerHTML = ''; return; }
+      const total = segs.reduce((a, s) => a + s.dur, 0) || 1;
+      const mini = !!opts.mini;
+      const topK = Math.max(6, ...segs.map((s) => s.kph)) * 1.08;
+      const topG = Math.max(5, ...segs.map((s) => s.grade)) * 1.15;
+      const padT = mini ? 3 : 24, padB = mini ? 2 : 8, h = H - padT - padB;
+      let x = 0, bars = '', line = '';
+      segs.forEach((s, i) => {
+        const w = (s.dur / total) * W;
+        const bh = Math.max(2, (s.kph / topK) * h);
+        const done = opts.at != null && (x + w) / W * total <= opts.at;
+        const cur = opts.at != null && !done && x / W * total <= opts.at;
+        const op = opts.at == null ? 0.9 : done ? 0.3 : cur ? 1 : 0.6;
+        bars += `<rect x="${(x + 0.75).toFixed(1)}" y="${(H - padB - bh).toFixed(1)}" width="${Math.max(1, w - 1.5).toFixed(1)}" height="${bh.toFixed(1)}" rx="${mini ? 1.5 : 3}" style="fill:var(--acc);opacity:${op}"/>`;
+        const gy = (H - padB - (Math.max(0, s.grade) / topG) * h).toFixed(1);
+        line += `${i ? 'L' : 'M'}${x.toFixed(1)} ${gy}H${(x + w).toFixed(1)}`;
+        x += w;
+      });
+      let extra = '';
+      if (!mini) {
+        extra += `<text x="6" y="16" style="fill:var(--mut);font:600 12px var(--ui)">máx ${fSpd(Math.max(...segs.map((s) => s.kph)))} ${uLabel()}</text>`;
+        extra += `<text x="${W - 6}" y="16" text-anchor="end" style="fill:var(--sky);font:600 12px var(--ui)">máx ${fGrade(Math.max(...segs.map((s) => s.grade)))} %</text>`;
+      }
+      if (opts.at != null) {
+        const cx = clamp((opts.at / total) * W, 1, W - 1).toFixed(1);
+        extra += `<line x1="${cx}" x2="${cx}" y1="${mini ? 0 : 20}" y2="${H}" style="stroke:var(--ink);stroke-width:2.5"/>`;
+      }
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Perfil de la rutina">${bars}<path d="${line}" style="fill:none;stroke:var(--sky);stroke-width:${mini ? 2 : 3};stroke-linejoin:round"/>${extra}</svg>`;
+    };
+    if (!drawn.has(el) && ro) ro.observe(el);
+    drawn.set(el, draw);
+    draw();
+  }
+
+  // ------------------------------------------------------------------ runner
+  class Runner {
+    constructor(routine) {
+      this.routine = routine;
+      this.segs = routine.segments.map((s) => ({ ...s }));
+      this.starts = [0];
+      this.segs.forEach((s) => this.starts.push(this.starts[this.starts.length - 1] + s.dur));
+      this.total = this.starts[this.starts.length - 1];
+      this.state = 'idle';
+      this.elapsed = 0; this.idx = -1; this.moving = 0; this.dist = 0;
+      this.reason = '';
+    }
+    get seg() { return this.segs[Math.max(0, this.idx)]; }
+    async begin() {
+      Wake.on();
+      this.state = 'countdown'; UI.run();
+      for (let n = 3; n >= 1; n--) {
+        if (this.state !== 'countdown') return;
+        this.count = n; UI.run(); Voice.beep(620, 0.12);
+        await sleep(1000);
+      }
+      if (this.state !== 'countdown') return;
+      const s0 = this.segs[0];
+      if (!tm.isMoving()) {
+        let ok = false;
+        if (settings.startFromApp) {
+          this.state = 'starting'; UI.run();
+          Voice.say('Arrancando la banda.');
+          try { ok = await tm.startBelt(s0.kph, s0.grade); } catch (e) { Log.add('err', e.message); UI.toast(e.message); }
+        }
+        if (!ok) {
+          if (this.state === 'ended') return;
+          this.state = 'waiting'; UI.run();
+          Voice.say('Presiona START en el panel de la cinta.');
+          ok = await tm.waitFor(() => tm.isMoving() || this.state === 'ended', 180000);
+          if (this.state === 'ended') return;
+          if (!ok) { this.finish(false); return; }
+        }
+      }
+      if (this.state === 'ended') return;
+      this.state = 'running';
+      this.last = performance.now();
+      this.applySegment(0, true);
+      Voice.say(`Comenzamos. ${s0.name}: ${speedPhrase(s0.kph)}, ${gradePhrase(s0.grade)}.`);
+      this.timer = setInterval(() => this.tick(), 250);
+      UI.run();
+    }
+    indexAt(ms) { let i = 0; while (i < this.segs.length && ms >= this.starts[i + 1] * 1000) i++; return i; }
+    tick() {
+      const t = performance.now();
+      const dt = (t - this.last) * (tm.s.demo ? TIME_SCALE : 1);
+      this.last = t;
+      if (this.state === 'running') {
+        this.elapsed += dt;
+        if (tm.isMoving()) { this.moving += dt; this.dist += ((tm.s.kph || 0) / 3.6) * (dt / 1000); }
+        const i = this.indexAt(this.elapsed);
+        if (i >= this.segs.length) { this.finish(true); return; }
+        if (i !== this.idx) this.applySegment(i);
+        this.announce();
+        this.verify();
+        this.watch();
+      }
+      UI.run();
+    }
+    applySegment(i, first) {
+      this.idx = i;
+      const s = this.segs[i];
+      this.warned = false; this.beeps = new Set(); this.retries = 0; this.verifyAt = performance.now() + 4000;
+      tm.setTarget(s.kph, s.grade);
+      if (!first) { Voice.beep(990, 0.2); Voice.say(`${s.name}. ${speedPhrase(s.kph)}, ${gradePhrase(s.grade)}.`); }
+    }
+    announce() {
+      const s = this.seg, next = this.segs[this.idx + 1];
+      const rem = this.starts[this.idx + 1] * 1000 - this.elapsed;
+      const w = settings.warnSec * 1000;
+      if (next && w > 0 && !this.warned && rem <= w && rem > 4000) {
+        this.warned = true;
+        const parts = [];
+        if (Math.abs(next.kph - s.kph) > 0.01) parts.push(speedPhrase(next.kph));
+        if (Math.abs(next.grade - s.grade) > 0.01) parts.push(gradePhrase(next.grade));
+        Voice.say(`En ${Math.round(rem / 1000)} segundos, ${next.name}${parts.length ? ': ' + parts.join(', ') : ''}.`);
+      }
+      for (const k of [3, 2, 1]) if (rem <= k * 1000 && rem > (k - 1) * 1000 && !this.beeps.has(k)) { this.beeps.add(k); Voice.beep(660, 0.1); }
+    }
+    verify() {
+      if (this.retries >= 2 || performance.now() < this.verifyAt || !tm.ready) return;
+      const s = this.seg;
+      const okK = tm.s.kph == null || Math.abs(tm.s.kph - tm.clampKph(s.kph)) < 0.06;
+      const okG = tm.s.grade == null || Math.abs(tm.s.grade - tm.clampGrade(s.grade)) < 0.3;
+      if (okK && okG) { this.retries = 2; return; }
+      this.retries++;
+      this.verifyAt = performance.now() + 4000;
+      Log.add('info', `La cinta aún no refleja el tramo; reenviando (${this.retries}/2).`);
+      tm.setTarget(s.kph, s.grade);
+    }
+    watch() {
+      if (Date.now() < tm.guardUntil) return;
+      const m = tm.s.mode;
+      if (m === M.DMK) this.hold('Llave de seguridad fuera. Colócala y toca Reanudar.');
+      else if (m === M.PAUSE || m === M.IDLE || m === M.RESULTS || m === M.SLEEP) this.hold('La cinta se detuvo desde el panel. Toca Reanudar para seguir.');
+    }
+    hold(reason, quiet) {
+      if (this.state !== 'running') return;
+      this.state = 'paused'; this.reason = reason;
+      if (!quiet) Voice.say(reason.split('.')[0] + '.');
+      UI.run();
+    }
+    async pause() {
+      if (this.state !== 'running') return;
+      this.state = 'paused'; this.reason = 'Rutina en pausa.'; UI.run();
+      Voice.say('Pausa.');
+      await tm.pause();
+    }
+    async resume() {
+      if (this.state !== 'paused') return;
+      if (!tm.ready) { UI.toast('Primero reconecta la cinta.'); return; }
+      this.state = 'resuming'; UI.run();
+      const s = this.seg;
+      let ok = tm.isMoving();
+      if (!ok) ok = tm.s.mode === M.PAUSE ? await tm.resume(s.kph, s.grade) : await tm.startBelt(s.kph, s.grade).catch((e) => { UI.toast(e.message); return false; });
+      if (!ok) {
+        this.state = 'waiting'; UI.run();
+        Voice.say('Presiona START en el panel de la cinta.');
+        ok = await tm.waitFor(() => tm.isMoving() || this.state === 'ended', 180000);
+        if (this.state === 'ended') return;
+        if (!ok) { this.state = 'paused'; this.reason = 'La banda no arrancó.'; UI.run(); return; }
+      }
+      tm.guard();
+      this.state = 'running'; this.last = performance.now(); this.reason = '';
+      this.applySegment(this.idx, true);
+      Voice.say(`Seguimos. ${speedPhrase(s.kph)}.`);
+      UI.run();
+    }
+    skip() {
+      if (!['running', 'paused'].includes(this.state) || this.idx < 0) return;
+      this.elapsed = this.starts[this.idx + 1] * 1000;
+      if (this.idx + 1 >= this.segs.length) { this.finish(true); return; }
+      if (this.state === 'running') this.tick();
+      else { this.idx++; UI.run(); }
+    }
+    adjust(dK, dG) {
+      const s = this.seg;
+      if (dK) s.kph = tm.clampKph(s.kph + dK);
+      if (dG) s.grade = tm.clampGrade(s.grade + dG);
+      this.retries = 0; this.verifyAt = performance.now() + 4000;
+      clearTimeout(this.adjT);
+      this.adjT = setTimeout(() => tm.setTarget(dK ? s.kph : null, dG ? s.grade : null), 350);
+      UI.run();
+    }
+    async finish(completed) {
+      if (this.state === 'ended') return;
+      const wasMoving = tm.isMoving();
+      this.state = 'ended';
+      clearInterval(this.timer);
+      this.completed = completed;
+      this.moving = Math.min(this.moving, this.total * 1000);
+      if (wasMoving && tm.ready) tm.stop();
+      Voice.say(completed ? 'Rutina terminada. ¡Buen trabajo!' : 'Rutina terminada.');
+      App.finishRun(this);
+    }
+  }
+
+  // ------------------------------------------------------------------ UI
+  const App = { view: 'panel', runner: null, edit: null, editDirty: false };
+  const UI = {
+    toast(msg, ms = 2800) {
+      let t = $('#toast');
+      if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; t.setAttribute('role', 'status'); document.body.appendChild(t); }
+      t.textContent = msg; t.classList.remove('hide');
+      clearTimeout(this._tt); this._tt = setTimeout(() => t.classList.add('hide'), ms);
+    },
+    sheet(html, mount, onClose) {
+      const layer = $('#layer');
+      layer.innerHTML = `<div class="scrim"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+      const scrim = layer.firstElementChild, el = scrim.firstElementChild;
+      let open = true;
+      const close = () => { if (!open) return; open = false; layer.innerHTML = ''; document.removeEventListener('keydown', onKey); if (onClose) onClose(); };
+      const onKey = (e) => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+      scrim.addEventListener('click', (e) => { if (e.target === scrim) close(); });
+      if (mount) mount(el, close);
+      const first = el.querySelector('input,button'); if (first) setTimeout(() => first.focus({ preventScroll: true }), 30);
+      return { el, close };
+    },
+    confirm(title, text, ok = 'Aceptar', danger = false) {
+      return new Promise((res) => {
+        let answer = false;
+        this.sheet(`<h3>${esc(title)}</h3><p class="mut">${esc(text)}</p><div class="sheet-btns"><button class="btn" data-a="no" type="button">Cancelar</button><button class="btn ${danger ? 'danger' : 'pri'}" data-a="yes" type="button">${esc(ok)}</button></div>`, (el, close) => {
+          el.addEventListener('click', (e) => { const b = e.target.closest('[data-a]'); if (!b) return; answer = b.dataset.a === 'yes'; close(); });
+        }, () => res(answer));
+      });
+    },
+    logChanged() { if (App.view === 'ajustes') { clearTimeout(this._lt); this._lt = setTimeout(() => renderLog(), 150); } },
+    run() { renderRun(); },
+  };
+
+  function go(view, push = true) {
+    if (App.runner && !['run', 'done'].includes(view)) view = 'run';
+    App.view = view;
+    $$('main > section').forEach((s) => s.classList.toggle('hide', s.dataset.view !== view));
+    $$('#tabs button').forEach((b) => b.toggleAttribute('aria-current', b.dataset.go === view || (view === 'editor' && b.dataset.go === 'rutinas')));
+    $$('#tabs button').forEach((b) => { if (b.hasAttribute('aria-current')) b.setAttribute('aria-current', 'page'); });
+    document.body.classList.toggle('running', view === 'run' || view === 'done');
+    if (push && location.hash !== '#' + view && ['panel', 'rutinas', 'ajustes', 'editor'].includes(view)) {
+      try { history.pushState(null, '', '#' + view); } catch (e) {}
+    }
+    window.scrollTo(0, 0);
+    if (view === 'panel') renderPanel();
+    if (view === 'rutinas') renderRoutines();
+    if (view === 'ajustes') renderSettings();
+    if (view === 'editor') renderEditor();
+    if (view === 'run') renderRun();
+  }
+  window.addEventListener('popstate', () => {
+    const h = location.hash.slice(1) || 'panel';
+    if (App.view === 'editor' && h !== 'editor' && App.editDirty) {
+      try { history.pushState(null, '', '#editor'); } catch (e) {}
+      leaveEditor();
+      return;
+    }
+    go(['panel', 'rutinas', 'ajustes', 'editor'].includes(h) ? (h === 'editor' && !App.edit ? 'rutinas' : h) : 'panel', false);
+  });
+
+  // ---------------- chip + panel
+  const MODE_TXT = { [M.RUNNING]: 'En marcha', [M.WARMUP]: 'Calentamiento', [M.COOLDOWN]: 'Enfriamiento', [M.PAUSE]: 'En pausa', [M.IDLE]: 'Detenida', [M.RESULTS]: 'Resumen', [M.DMK]: 'Llave de seguridad fuera', [M.SLEEP]: 'En reposo', [M.UNKNOWN]: 'Estado desconocido' };
+  function renderChip() {
+    const p = tm.s.phase, chip = $('#chip');
+    const txt = { off: 'Desconectada', connecting: 'Buscando…', handshake: 'Conectando…', ready: tm.s.demo ? 'Demostración' : 'Conectada', lost: 'Sin conexión' }[p];
+    chip.dataset.s = p === 'ready' ? 'ready' : p === 'lost' ? 'lost' : p === 'off' ? 'off' : 'busy';
+    $('#chip-t').textContent = txt;
+  }
+  function renderPanel() {
+    const p = tm.s.phase;
+    const connected = p === 'ready' || p === 'lost';
+    $('#connect-box').classList.toggle('hide', connected);
+    $('#live-box').classList.toggle('hide', !connected);
+    const nb = $('#no-bt');
+    nb.classList.toggle('hide', BT_OK);
+    if (!BT_OK) nb.innerHTML = navigator.bluetooth
+      ? 'Esta vista previa no puede usar Bluetooth. Para conectar tu cinta abre la app desde su propia dirección en <b>Chrome</b> (ver la guía de instalación). Aquí puedes probarla en modo demostración.'
+      : 'Este navegador no permite Bluetooth web. Abre la app en <b>Chrome para Android</b>. Mientras tanto puedes probarla en modo demostración.';
+    const busy = p === 'connecting' || p === 'handshake';
+    const bc = $('#btn-connect');
+    bc.disabled = busy || !BT_OK;
+    bc.innerHTML = `<svg class="i"><use href="#i-bt"/></svg>${busy ? 'Conectando…' : 'Conectar cinta'}`;
+    $('#btn-demo').disabled = busy;
+    if (connected) { renderLive(); renderQuick(); }
+  }
+  function renderLive() {
+    const s = tm.s;
+    $('#lv-spd').textContent = fSpd(s.kph ?? 0);
+    $('#lv-spd-u').textContent = uLabel();
+    $('#lv-spd-2').textContent = s.kph != null ? (isMph() ? `${f1(s.kph)} km/h` : `${f1(s.kph / KM_PER_MI)} mph`) : '';
+    $('#lv-inc').textContent = fGrade(s.grade ?? 0);
+    $('#lv-inc-2').textContent = `rango ${f1(s.limits.minGrade)}–${f1(s.limits.maxGrade)} %`;
+    const time = s.time > 0 ? s.time : s.localTime, dist = s.dist > 0 ? s.dist : s.localDist;
+    const du = isMph() ? 'mi' : 'km';
+    $('#lv-time').textContent = fClock(time || 0);
+    $('#lv-dist').innerHTML = `${fDist(dist || 0).split(' ')[0]}<small>${du}</small>`;
+    $('#lv-pace').innerHTML = tm.isMoving() ? `${fPace(s.kph)}<small>/${du}</small>` : '–';
+    const pill = $('#mode-pill');
+    let txt = s.phase === 'lost' ? 'Sin conexión' : (s.mode == null ? 'Esperando datos' : MODE_TXT[s.mode] || `Modo ${s.mode}`);
+    pill.textContent = txt;
+    pill.dataset.m = s.phase === 'lost' || s.mode === M.DMK ? 'warn' : tm.isMoving() ? 'moving' : '';
+    $('#units-hint').textContent = s.demo ? 'Cinta simulada' : (s.name || '');
+
+    const ss = $('#btn-startstop');
+    const moving = tm.isMoving(), paused = s.mode === M.PAUSE;
+    ss.dataset.act = moving ? 'pause' : paused ? 'resume' : 'start';
+    ss.innerHTML = `<svg class="i"><use href="#i-${moving ? 'pause' : 'play'}"/></svg><span>${moving ? 'Pausar' : paused ? 'Reanudar' : 'Arrancar banda'}</span>`;
+    const lost = s.phase === 'lost';
+    ['#btn-startstop', '#btn-stop', '#spd-up', '#spd-dn', '#inc-up', '#inc-dn'].forEach((q) => ($(q).disabled = lost));
+    let lb = $('#lost-banner');
+    if (lost && !lb) {
+      lb = document.createElement('div'); lb.id = 'lost-banner'; lb.className = 'banner bad';
+      lb.innerHTML = 'Se perdió la conexión. La cinta sigue a la última velocidad: usa el panel o la llave de seguridad para detenerla. <button class="btn" type="button" id="btn-reconnect" style="margin-top:8px">Reconectar</button>';
+      $('#live-box').prepend(lb);
+    } else if (!lost && lb) lb.remove();
+  }
+  function renderQuick() {
+    $('#quick-list').innerHTML = routines.slice(0, 4).map((r) => `
+      <div class="rcard"><div class="row" style="justify-content:space-between;flex-wrap:nowrap">
+        <div><h3>${esc(r.name)}</h3><div class="rmeta"><span><b>${fDur(totalSec(r))}</b></span><span>máx <b>${fSpd(maxKph(r))}</b> ${uLabel()}</span></div></div>
+        <button class="icon-btn" style="background:var(--acc);color:var(--acc-ink);border:0" type="button" data-run="${r.id}" aria-label="Iniciar ${esc(r.name)}"><svg class="i"><use href="#i-play"/></svg></button>
+      </div></div>`).join('') || '<p class="mut">Aún no tienes rutinas.</p>';
+  }
+
+  // manual adjustments from the panel (debounced so several taps send one command)
+  const manual = { k: null, g: null, t: null };
+  function nudge(dK, dG) {
+    if (!tm.ready) return;
+    if (dK && !tm.isMoving()) { UI.toast('Primero arranca la banda.'); return; }
+    if (dK) { manual.k = tm.clampKph((manual.k ?? tm.s.kph ?? 0) + dK); $('#lv-spd').textContent = fSpd(manual.k); }
+    if (dG) { manual.g = tm.clampGrade((manual.g ?? tm.s.grade ?? 0) + dG); $('#lv-inc').textContent = fGrade(manual.g); }
+    clearTimeout(manual.t);
+    manual.t = setTimeout(() => { const k = manual.k, g = manual.g; manual.k = manual.g = null; tm.setTarget(k, g); }, 400);
+  }
+
+  // ---------------- routines list
+  function renderRoutines() {
+    const list = $('#routine-list');
+    if (!routines.length) { list.innerHTML = '<div class="card"><p>No hay rutinas. Crea una nueva o restaura los ejemplos en Ajustes.</p></div>'; return; }
+    list.innerHTML = routines.map((r) => `
+      <article class="rcard">
+        <h3>${esc(r.name)}</h3>
+        <div class="rmeta"><span><b>${fDur(totalSec(r))}</b></span><span><b>${fDist(estDist(r)).split(' ')[0]}</b> ${fDist(0).split(' ')[1]} aprox.</span><span>${r.segments.length} tramos</span><span>máx <b>${fSpd(maxKph(r))}</b> ${uLabel()}</span></div>
+        <div class="strip" data-strip="${r.id}"></div>
+        <div class="rbtns">
+          <button class="btn pri" type="button" data-run="${r.id}"><svg class="i"><use href="#i-play"/></svg>Iniciar</button>
+          <button class="icon-btn" type="button" data-edit="${r.id}" aria-label="Editar ${esc(r.name)}"><svg class="i"><use href="#i-edit"/></svg></button>
+          <button class="icon-btn" type="button" data-dup="${r.id}" aria-label="Duplicar ${esc(r.name)}"><svg class="i"><use href="#i-dup"/></svg></button>
+        </div>
+      </article>`).join('');
+    routines.forEach((r) => { const el = list.querySelector(`[data-strip="${r.id}"]`); if (el) profile(el, r.segments, { mini: true }); });
+  }
+
+  // ---------------- editor
+  function openEditor(r) {
+    App.edit = r ? JSON.parse(JSON.stringify(r)) : { id: null, name: '', segments: [seg('Calentamiento', 180, 4.5, 0), seg('Caminata', 600, 5.5, 1), seg('Enfriamiento', 120, 4.0, 0)] };
+    App.editDirty = !r;
+    go('editor');
+  }
+  function renderEditor() {
+    const e = App.edit; if (!e) return go('rutinas');
+    const name = $('#ed-name');
+    if (document.activeElement !== name) name.value = e.name;
+    $('#ed-delete').classList.toggle('hide', !e.id);
+    profile($('#ed-prof'), e.segments);
+    const r = { segments: e.segments };
+    $('#ed-sum').innerHTML = `
+      <div class="stat"><span>Duración</span><b class="num">${fClock(totalSec(r))}</b></div>
+      <div class="stat"><span>Distancia aprox.</span><b class="num">${fDist(estDist(r))}</b></div>
+      <div class="stat"><span>Vel. máxima</span><b class="num">${fSpd(maxKph(r))}<small>${uLabel()}</small></b></div>`;
+    $('#ed-segs').innerHTML = e.segments.map((s, i) => `
+      <li class="seg">
+        <span class="n">${i + 1}</span>
+        <button class="open" type="button" data-seg="${i}"><div class="t">${esc(s.name)}</div><div class="d">${fClock(s.dur)} · <b>${fSpd(s.kph)}</b> ${uLabel()} · <em>${fGrade(s.grade)} %</em></div></button>
+        <span class="ord"><button type="button" data-up="${i}" aria-label="Subir tramo" ${i === 0 ? 'disabled' : ''}><svg class="i"><use href="#i-up"/></svg></button><button type="button" data-down="${i}" aria-label="Bajar tramo" ${i === e.segments.length - 1 ? 'disabled' : ''}><svg class="i"><use href="#i-down"/></svg></button></span>
+      </li>`).join('');
+  }
+  async function leaveEditor() {
+    if (App.editDirty && !(await UI.confirm('¿Salir sin guardar?', 'Perderás los cambios de esta rutina.', 'Salir', true))) return;
+    App.edit = null; App.editDirty = false; go('rutinas');
+  }
+  const NAMES = ['Calentamiento', 'Caminata', 'Rápido', 'Trote', 'Carrera', 'Cuesta', 'Suave', 'Recuperación', 'Enfriamiento'];
+
+  function stepper(id, value, steps, unit) {
+    return `<div class="stepper" data-stepper="${id}">
+      <button type="button" data-d="${-steps[1]}">${fmtStep(-steps[1], id)}</button><button type="button" data-d="${-steps[0]}">${fmtStep(-steps[0], id)}</button>
+      <input type="text" inputmode="decimal" aria-label="${unit}" value="${value}">
+      <button type="button" data-d="${steps[0]}">${fmtStep(steps[0], id)}</button><button type="button" data-d="${steps[1]}">${fmtStep(steps[1], id)}</button></div>`;
+  }
+  function fmtStep(d, id) { if (id.startsWith('dur')) return (d > 0 ? '+' : '−') + (Math.abs(d) >= 60 ? `${Math.abs(d) / 60}m` : `${Math.abs(d)}s`); return (d > 0 ? '+' : '−') + String(Math.abs(d)); }
+  function parseDur(t) { t = String(t).trim(); if (/^\d+:\d{1,2}$/.test(t)) { const [m, s] = t.split(':').map(Number); return m * 60 + s; } const n = parseFloat(t.replace(',', '.')); return isFinite(n) ? Math.round(n * 60) : null; }
+  const durLimits = [5, 7200];
+  // binds a stepper to a getter/setter on a segment object (values kept in km/h internally)
+  function bindSegFields(el, s, onChange) {
+    const L = tm.s.limits;
+    const spdMin = 0.8, spdMax = Math.min(settings.maxKph, L.maxKph);
+    const conf = {
+      dur: { get: () => fClock(s.dur), add: (d) => (s.dur = clamp(s.dur + d, ...durLimits)), set: (t) => { const v = parseDur(t); if (v != null) s.dur = clamp(v, ...durLimits); } },
+      spd: { get: () => fSpd(s.kph), add: (d) => (s.kph = clamp(Math.round(fromDisp(toDisp(s.kph) + d) * 100) / 100, spdMin, spdMax)), set: (t) => { const v = parseFloat(String(t).replace(',', '.')); if (isFinite(v)) s.kph = clamp(fromDisp(v), spdMin, spdMax); } },
+      inc: { get: () => fGrade(s.grade), add: (d) => (s.grade = clamp(Math.round((s.grade + d) * 10) / 10, L.minGrade, L.maxGrade)), set: (t) => { const v = parseFloat(String(t).replace(',', '.')); if (isFinite(v)) s.grade = clamp(v, L.minGrade, L.maxGrade); } },
+    };
+    $$('[data-stepper]', el).forEach((st) => {
+      const key = st.dataset.stepper.replace(/\d+$/, '');
+      const c = conf[key]; if (!c) return;
+      const input = $('input', st);
+      st.addEventListener('click', (e) => { const b = e.target.closest('button[data-d]'); if (!b) return; c.add(parseFloat(b.dataset.d)); input.value = c.get(); onChange(); });
+      input.addEventListener('change', () => { c.set(input.value); input.value = c.get(); onChange(); });
+    });
+  }
+  function segSheet(i) {
+    const e = App.edit, s = e.segments[i];
+    UI.sheet(`
+      <h3>Tramo ${i + 1}</h3>
+      <div class="field"><label for="sg-name">Nombre</label><input id="sg-name" type="text" maxlength="40" value="${esc(s.name)}">
+        <div class="chips">${NAMES.map((n) => `<button type="button" data-name="${n}">${n}</button>`).join('')}</div></div>
+      <div class="field"><span class="lbl">Duración (min:seg)</span>${stepper('dur', fClock(s.dur), [15, 60], 'Duración')}</div>
+      <div class="field"><span class="lbl">Velocidad (${uLabel()})</span>${stepper('spd', fSpd(s.kph), [0.1, 0.5], 'Velocidad')}</div>
+      <div class="field"><span class="lbl">Inclinación (%)</span>${stepper('inc', fGrade(s.grade), [0.5, 1], 'Inclinación')}</div>
+      <div class="sheet-btns">
+        <button class="btn danger" type="button" data-a="del" ${e.segments.length < 2 ? 'disabled' : ''}><svg class="i"><use href="#i-trash"/></svg>Eliminar</button>
+        <button class="btn" type="button" data-a="dup"><svg class="i"><use href="#i-dup"/></svg>Duplicar</button>
+        <button class="btn pri" type="button" data-a="ok">Listo</button>
+      </div>`, (el, close) => {
+      const changed = () => { App.editDirty = true; renderEditor(); };
+      bindSegFields(el, s, changed);
+      const nm = $('#sg-name', el);
+      nm.addEventListener('input', () => { s.name = nm.value.trim() || 'Tramo'; changed(); });
+      $('.chips', el).addEventListener('click', (ev) => { const b = ev.target.closest('[data-name]'); if (!b) return; nm.value = s.name = b.dataset.name; changed(); });
+      el.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-a]'); if (!b) return;
+        if (b.dataset.a === 'del') { e.segments.splice(i, 1); changed(); close(); }
+        if (b.dataset.a === 'dup') { e.segments.splice(i + 1, 0, { ...s }); changed(); close(); UI.toast('Tramo duplicado'); }
+        if (b.dataset.a === 'ok') close();
+      });
+    });
+  }
+  function intervalsSheet() {
+    const reps = { n: 5 };
+    const a = seg('Rápido', 60, 6.5, 1), b = seg('Suave', 60, 4.8, 1);
+    UI.sheet(`
+      <h3>Añadir intervalos</h3>
+      <div class="field"><span class="lbl">Repeticiones</span><div class="stepper" data-reps><button type="button" data-d="-5">−5</button><button type="button" data-d="-1">−1</button><input type="text" inputmode="numeric" aria-label="Repeticiones" value="${reps.n}"><button type="button" data-d="1">+1</button><button type="button" data-d="5">+5</button></div></div>
+      <div id="iv-a"><h3 style="font-size:17px;margin-top:18px">Tramo A · <span class="mut">intenso</span></h3>
+        <div class="field"><span class="lbl">Duración</span>${stepper('dur', fClock(a.dur), [15, 60], 'Duración A')}</div>
+        <div class="field"><span class="lbl">Velocidad (${uLabel()})</span>${stepper('spd', fSpd(a.kph), [0.1, 0.5], 'Velocidad A')}</div>
+        <div class="field"><span class="lbl">Inclinación (%)</span>${stepper('inc', fGrade(a.grade), [0.5, 1], 'Inclinación A')}</div></div>
+      <div id="iv-b"><h3 style="font-size:17px;margin-top:18px">Tramo B · <span class="mut">recuperación</span></h3>
+        <div class="field"><span class="lbl">Duración</span>${stepper('dur', fClock(b.dur), [15, 60], 'Duración B')}</div>
+        <div class="field"><span class="lbl">Velocidad (${uLabel()})</span>${stepper('spd', fSpd(b.kph), [0.1, 0.5], 'Velocidad B')}</div>
+        <div class="field"><span class="lbl">Inclinación (%)</span>${stepper('inc', fGrade(b.grade), [0.5, 1], 'Inclinación B')}</div></div>
+      <div class="sheet-btns"><button class="btn" type="button" data-a="no">Cancelar</button><button class="btn pri" type="button" data-a="add">Añadir</button></div>`, (el, close) => {
+      bindSegFields($('#iv-a', el), a, () => {});
+      bindSegFields($('#iv-b', el), b, () => {});
+      const rs = $('[data-reps]', el), ri = $('input', rs);
+      const setN = (n) => { reps.n = clamp(Math.round(n) || 1, 1, 40); ri.value = reps.n; $('[data-a=add]', el).textContent = `Añadir ${reps.n * 2} tramos`; };
+      setN(reps.n);
+      rs.addEventListener('click', (ev) => { const bt = ev.target.closest('button[data-d]'); if (bt) setN(reps.n + parseFloat(bt.dataset.d)); });
+      ri.addEventListener('change', () => setN(parseFloat(ri.value)));
+      el.addEventListener('click', (ev) => {
+        const bt = ev.target.closest('[data-a]'); if (!bt) return;
+        if (bt.dataset.a === 'add') { for (let k = 0; k < reps.n; k++) App.edit.segments.push({ ...a }, { ...b }); App.editDirty = true; renderEditor(); UI.toast(`${reps.n * 2} tramos añadidos`); }
+        close();
+      });
+    });
+  }
+
+  // ---------------- run view
+  function startRoutine(id) {
+    const r = routines.find((x) => x.id === id);
+    if (!r) return;
+    Voice.prime();
+    if (!tm.ready) {
+      UI.sheet(`<h3>Primero conecta la cinta</h3><p class="mut">Para correr «${esc(r.name)}» la app necesita estar conectada por Bluetooth.</p>
+        <div class="sheet-btns"><button class="btn" type="button" data-a="demo">Probar en demostración</button><button class="btn pri" type="button" data-a="conn">Conectar</button></div>`, (el, close) => {
+        el.addEventListener('click', async (e) => {
+          const b = e.target.closest('[data-a]'); if (!b) return; close();
+          try { if (await tm.connect(b.dataset.a === 'demo')) startRoutine(id); else go('panel'); } catch (err) { UI.toast(err.message, 4500); go('panel'); }
+        });
+      });
+      return;
+    }
+    App.runner = new Runner(r);
+    go('run');
+    App.runner.begin();
+  }
+  App.finishRun = (runner) => {
+    Wake.off();
+    const r = runner;
+    $('#done-name').textContent = r.completed ? '¡Bien hecho!' : r.routine.name;
+    $('#done-time').textContent = fClock(r.moving / 1000);
+    const avg = r.moving > 0 ? r.dist / (r.moving / 1000) * 3.6 : 0;
+    $('#done-stats').innerHTML = `
+      <div class="stat"><span>Distancia</span><b class="num">${fDist(r.dist)}</b></div>
+      <div class="stat"><span>Vel. media</span><b class="num">${fSpd(avg)}<small>${uLabel()}</small></b></div>
+      <div class="stat"><span>Tramos</span><b class="num">${Math.min(r.idx + 1, r.segs.length)}/${r.segs.length}</b></div>`;
+    App.runner = null;
+    go('done');
+  };
+  let lastProf = 0;
+  function renderRun() {
+    const r = App.runner; if (!r || App.view !== 'run') return;
+    const s = r.segs[Math.max(0, r.idx)], next = r.segs[Math.max(0, r.idx) + 1];
+    const segEnd = r.starts[Math.max(0, r.idx) + 1] * 1000;
+    const segStart = r.starts[Math.max(0, r.idx)] * 1000;
+    $('#run-name').textContent = r.routine.name;
+    $('#run-rem').textContent = '−' + fClock((r.total * 1000 - r.elapsed) / 1000);
+    $('#run-lab').innerHTML = `${esc(s.name)} <span>· ${Math.max(0, r.idx) + 1} de ${r.segs.length}</span>`;
+    $('#run-clock').textContent = fClock(Math.ceil((segEnd - r.elapsed) / 1000));
+    $('#run-bar').style.width = `${clamp(((r.elapsed - segStart) / (segEnd - segStart)) * 100, 0, 100)}%`;
+    $('#run-spd').textContent = fSpd(s.kph); $('#run-spd-u').textContent = uLabel();
+    $('#run-inc').textContent = fGrade(s.grade);
+    $('#run-spd-live').textContent = tm.ready ? `cinta: ${fSpd(tm.s.kph)} ${uLabel()}` : 'cinta: sin conexión';
+    $('#run-inc-live').textContent = tm.ready ? `cinta: ${fGrade(tm.s.grade)} %` : '';
+    $('#run-next').innerHTML = next ? `Siguiente · ${esc(next.name)} <b>${fSpd(next.kph)}</b> ${uLabel()} · <b>${fGrade(next.grade)}</b> % · ${fClock(next.dur)}` : 'Último tramo';
+    if (performance.now() - lastProf > 900 || r.state !== 'running') { profile($('#run-prof'), r.segs, { at: r.elapsed / 1000 }); lastProf = performance.now(); }
+    const ov = $('#run-ov');
+    const ovHtml = {
+      countdown: `<div class="big num">${r.count || 3}</div><div>Párate en los rieles laterales y sujeta el clip de seguridad.</div>`,
+      starting: '<div style="font-size:22px;font-weight:700">Arrancando la banda…</div><div class="mut">Sujeta el clip de seguridad.</div>',
+      waiting: '<div style="font-size:22px;font-weight:700">Presiona START en el panel</div><div class="mut">La banda no arrancó desde la app. En cuanto se mueva, la rutina sigue sola.</div>',
+      resuming: '<div style="font-size:22px;font-weight:700">Reanudando…</div>',
+    }[r.state];
+    ov.classList.toggle('hide', !ovHtml);
+    if (ovHtml && ov.dataset.st !== r.state + (r.count || '')) { ov.innerHTML = ovHtml; ov.dataset.st = r.state + (r.count || ''); }
+    const banner = $('#run-banner');
+    const showB = r.state === 'paused' || (r.state === 'running' && !tm.ready);
+    banner.classList.toggle('hide', !showB);
+    banner.classList.toggle('bad', !tm.ready);
+    if (showB) banner.textContent = !tm.ready ? 'Sin conexión con la cinta. Sigue a la última velocidad: usa el panel o la llave de seguridad si necesitas parar.' : r.reason;
+    const pb = $('#run-pause');
+    const paused = r.state === 'paused';
+    pb.innerHTML = `<svg class="i"><use href="#i-${paused ? 'play' : 'pause'}"/></svg><span>${paused ? 'Reanudar' : 'Pausa'}</span>`;
+    pb.disabled = !['running', 'paused'].includes(r.state);
+    $('#run-skip').disabled = !['running', 'paused'].includes(r.state);
+    ['#run-spd-dn', '#run-spd-up', '#run-inc-dn', '#run-inc-up'].forEach((q) => ($(q).disabled = r.state !== 'running'));
+  }
+
+  function countdown(sec) {
+    return new Promise((res) => {
+      let n = sec, timer = null, done = false;
+      UI.sheet(`<h3>Arrancando la banda</h3><div class="num" id="cd-n" style="font-size:96px;line-height:1;text-align:center;color:var(--acc)">${n}</div>
+        <p class="mut" style="text-align:center">Párate en los rieles laterales y sujeta el clip de seguridad.</p>
+        <div class="sheet-btns"><button class="btn big" type="button" data-a="no">Cancelar</button></div>`, (el, close) => {
+        Voice.beep(620, 0.1);
+        el.addEventListener('click', (e) => { if (e.target.closest('[data-a]')) close(); });
+        timer = setInterval(() => { n--; if (n <= 0) { done = true; close(); } else { Voice.beep(620, 0.1); const x = el.querySelector('#cd-n'); if (x) x.textContent = n; } }, 1000);
+      }, () => { clearInterval(timer); res(done); });
+    });
+  }
+
+  // ---------------- settings + diagnostics
+  function segCtl(id, val) { $$(`#${id} button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === String(val)))); }
+  function renderSettings() {
+    segCtl('set-unit', settings.unit);
+    segCtl('set-warn', settings.warnSec);
+    segCtl('set-unlock', settings.unlock);
+    $('#max-v').textContent = `${fSpd(settings.maxKph)} ${uLabel()}`;
+    $('#set-startapp').checked = settings.startFromApp;
+    $('#set-voice').checked = settings.voice;
+    $('#set-beeps').checked = settings.beeps;
+    $('#set-wake').checked = settings.wake;
+    $('#set-all').checked = settings.showAll;
+    $('#set-raw').checked = settings.raw;
+    renderDiag();
+    renderLog();
+    $('#ver').textContent = `Versión ${VERSION}`;
+  }
+  function renderDiag() {
+    const s = tm.s, id = tm.identity;
+    const rows = [
+      ['Estado', { off: 'desconectada', connecting: 'buscando', handshake: 'conectando', ready: 'lista', lost: 'sin conexión' }[s.phase] + (s.demo ? ' (demostración)' : '')],
+      ['Dispositivo', s.name || '–'],
+      ['Software', id.device ? id.device.softwareVersion : '–'],
+      ['Modelo / pieza', id.system ? `${id.system.model} / ${id.system.part}` : '–'],
+      ['Librería', id.version ? `v${id.version.masterLibraryVersion}` : '–'],
+      ['Desbloqueo', s.unlocked === true ? `sí (${s.unlockHow})` : s.unlocked === false ? `no (${s.unlockHow})` : s.unlockHow || '–'],
+      ['Límites', `${f1(s.limits.minKph)}–${f1(s.limits.maxKph)} km/h · ${f1(s.limits.minGrade)}–${f1(s.limits.maxGrade)} %`],
+      ['Unidades consola', s.boardUnits === 'metric' ? 'km/h (según la cinta)' : s.boardUnits === 'imperial' ? 'mph (según la cinta)' : '–'],
+      ['Arranque que funcionó', tm.startMethod || '–'],
+    ];
+    $('#diag-kv').innerHTML = rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+  }
+  function renderLog() {
+    if (App.view !== 'ajustes') return;
+    const el = $('#log');
+    const rows = settings.raw ? [...Log.lines.map((l) => ({ ...l, n: 0 })), ...Log.raw.map((l) => ({ ...l, n: 1 }))].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.n - b.n)).slice(-300) : Log.lines.slice(-200);
+    const stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+    el.innerHTML = rows.map((l) => `<div class="${l.kind}">${l.t} ${esc(l.text)}</div>`).join('') || '<div class="mut">Sin eventos todavía.</div>';
+    if (stick) el.scrollTop = el.scrollHeight;
+    renderDiag();
+  }
+  async function copyText(text, okMsg) {
+    try { await navigator.clipboard.writeText(text); UI.toast(okMsg); }
+    catch (e) {
+      UI.sheet(`<h3>Copia este texto</h3><div class="field"><textarea id="cp-t" readonly>${esc(text)}</textarea></div><div class="sheet-btns"><button class="btn pri" type="button" data-a="ok">Cerrar</button></div>`, (el, close) => {
+        const t = $('#cp-t', el); t.focus(); t.select(); el.addEventListener('click', (ev) => { if (ev.target.closest('[data-a]')) close(); });
+      });
+    }
+  }
+
+  // ------------------------------------------------------------------ events
+  function bind() {
+    $('#tabs').addEventListener('click', (e) => { const b = e.target.closest('[data-go]'); if (!b) return; if (App.view === 'editor' && App.editDirty) { leaveEditor(); return; } go(b.dataset.go); });
+    $('#chip').addEventListener('click', () => { if (!App.runner) go('panel'); });
+    $('#btn-connect').addEventListener('click', async () => {
+      Voice.prime();
+      try { const ok = await tm.connect(false); if (ok) UI.toast('Cinta conectada'); }
+      catch (e) { Log.add('err', e.message); UI.toast(e.message, 5000); }
+    });
+    $('#btn-demo').addEventListener('click', async () => { Voice.prime(); try { await tm.connect(true); UI.toast('Modo demostración: una cinta simulada'); } catch (e) { UI.toast(e.message); } });
+    $('#btn-disconnect').addEventListener('click', () => tm.disconnect());
+    $('#live-box').addEventListener('click', async (e) => {
+      if (e.target.closest('#btn-reconnect')) { try { await tm.reconnectNow(); } catch (err) { UI.toast('No se pudo reconectar. Revisa que la cinta esté encendida.'); } }
+    });
+    $('#spd-up').addEventListener('click', () => nudge(fromDisp(spdStep()), 0));
+    $('#spd-dn').addEventListener('click', () => nudge(-fromDisp(spdStep()), 0));
+    $('#inc-up').addEventListener('click', () => nudge(0, 0.5));
+    $('#inc-dn').addEventListener('click', () => nudge(0, -0.5));
+    $('#btn-startstop').addEventListener('click', async (e) => {
+      Voice.prime();
+      const act = e.currentTarget.dataset.act;
+      try {
+        if (act === 'pause') await tm.pause();
+        else if (act === 'resume') await tm.resume(tm.s.kph || 3, tm.s.grade || 0);
+        else {
+          if (!(await countdown(3))) return;
+          const ok = await tm.startBelt(3.0, tm.s.grade || 0);
+          if (!ok) UI.toast('La banda no arrancó desde la app. Presiona START en el panel.', 5000);
+        }
+      } catch (err) { UI.toast(err.message, 4500); }
+    });
+    $('#btn-stop').addEventListener('click', () => tm.stop());
+    document.addEventListener('click', (e) => {
+      const run = e.target.closest('[data-run]'); if (run) { startRoutine(run.dataset.run); return; }
+      const ed = e.target.closest('[data-edit]'); if (ed) { openEditor(routines.find((r) => r.id === ed.dataset.edit)); return; }
+      const dup = e.target.closest('[data-dup]');
+      if (dup) { const r = routines.find((x) => x.id === dup.dataset.dup); if (r) { const c = { ...JSON.parse(JSON.stringify(r)), id: uid(), name: r.name + ' (copia)' }; routines.splice(routines.indexOf(r) + 1, 0, c); saveRoutines(); renderRoutines(); UI.toast('Rutina duplicada'); } }
+    });
+    $('#btn-new').addEventListener('click', () => openEditor(null));
+    $('#ed-back').addEventListener('click', () => leaveEditor());
+    $('#ed-name').addEventListener('input', (e) => { App.edit.name = e.target.value; App.editDirty = true; });
+    $('#ed-segs').addEventListener('click', (e) => {
+      const o = e.target.closest('[data-seg]'); if (o) { segSheet(+o.dataset.seg); return; }
+      const u = e.target.closest('[data-up]'), d = e.target.closest('[data-down]');
+      const segs = App.edit.segments;
+      if (u) { const i = +u.dataset.up; [segs[i - 1], segs[i]] = [segs[i], segs[i - 1]]; }
+      else if (d) { const i = +d.dataset.down; [segs[i + 1], segs[i]] = [segs[i], segs[i + 1]]; }
+      else return;
+      App.editDirty = true; renderEditor();
+    });
+    $('#ed-add').addEventListener('click', () => { const segs = App.edit.segments; segs.push(segs.length ? { ...segs[segs.length - 1] } : seg('Caminata', 120, 4.5, 0)); App.editDirty = true; renderEditor(); segSheet(segs.length - 1); });
+    $('#ed-intervals').addEventListener('click', intervalsSheet);
+    $('#ed-save').addEventListener('click', () => {
+      const e = App.edit;
+      if (!e.segments.length) { UI.toast('Añade al menos un tramo'); return; }
+      e.name = (e.name || '').trim() || 'Mi rutina';
+      if (e.id) { const i = routines.findIndex((r) => r.id === e.id); if (i >= 0) routines[i] = e; else routines.push(e); }
+      else { e.id = uid(); routines.unshift(e); }
+      saveRoutines();
+      App.edit = null; App.editDirty = false;
+      go('rutinas'); UI.toast('Rutina guardada');
+    });
+    $('#ed-delete').addEventListener('click', async () => {
+      if (!(await UI.confirm('¿Eliminar rutina?', `Se borrará «${App.edit.name}».`, 'Eliminar', true))) return;
+      routines = routines.filter((r) => r.id !== App.edit.id); saveRoutines();
+      App.edit = null; App.editDirty = false; go('rutinas'); UI.toast('Rutina eliminada');
+    });
+    // run controls
+    $('#run-pause').addEventListener('click', () => { const r = App.runner; if (!r) return; r.state === 'paused' ? r.resume() : r.pause(); });
+    $('#run-skip').addEventListener('click', () => App.runner && App.runner.skip());
+    $('#run-end').addEventListener('click', async () => {
+      const r = App.runner; if (!r) return;
+      if (['countdown', 'starting', 'waiting'].includes(r.state)) { r.finish(false); return; }
+      if (await UI.confirm('¿Terminar la rutina?', 'La banda se detendrá.', 'Terminar', true)) r.finish(false);
+    });
+    $('#run-spd-up').addEventListener('click', () => App.runner && App.runner.adjust(fromDisp(spdStep()), 0));
+    $('#run-spd-dn').addEventListener('click', () => App.runner && App.runner.adjust(-fromDisp(spdStep()), 0));
+    $('#run-inc-up').addEventListener('click', () => App.runner && App.runner.adjust(0, 0.5));
+    $('#run-inc-dn').addEventListener('click', () => App.runner && App.runner.adjust(0, -0.5));
+    $('#done-ok').addEventListener('click', () => go('panel'));
+    // settings
+    const segBind = (id, key, conv = (v) => v) => $(`#${id}`).addEventListener('click', (e) => { const b = e.target.closest('button[data-v]'); if (!b) return; settings[key] = conv(b.dataset.v); saveSettings(); renderSettings(); });
+    segBind('set-unit', 'unit');
+    $('#set-unit').addEventListener('click', () => Store.set('cinta.unitsChosen', true));
+    segBind('set-warn', 'warnSec', Number);
+    segBind('set-unlock', 'unlock');
+    $('#max-up').addEventListener('click', () => { settings.maxKph = clamp(Math.round((settings.maxKph + fromDisp(0.5)) * 100) / 100, 3, 25); saveSettings(); renderSettings(); });
+    $('#max-dn').addEventListener('click', () => { settings.maxKph = clamp(Math.round((settings.maxKph - fromDisp(0.5)) * 100) / 100, 3, 25); saveSettings(); renderSettings(); });
+    const sw = (id, key) => $(`#${id}`).addEventListener('change', (e) => { settings[key] = e.target.checked; saveSettings(); if (key === 'raw') renderLog(); });
+    sw('set-startapp', 'startFromApp'); sw('set-voice', 'voice'); sw('set-beeps', 'beeps'); sw('set-wake', 'wake'); sw('set-all', 'showAll'); sw('set-raw', 'raw');
+    $('#btn-copylog').addEventListener('click', () => copyText(`Cinta ${VERSION} · ${navigator.userAgent}\n` + Log.text(), 'Registro copiado'));
+    $('#btn-clearlog').addEventListener('click', () => { Log.lines = []; Log.raw = []; renderLog(); });
+    $('#btn-export').addEventListener('click', () => copyText(JSON.stringify({ app: 'cinta', v: 1, routines }, null, 1), 'Respaldo copiado'));
+    $('#btn-import').addEventListener('click', () => {
+      UI.sheet(`<h3>Importar rutinas</h3><p class="mut">Pega aquí un respaldo copiado desde esta app.</p><div class="field"><textarea id="imp-t" aria-label="Respaldo"></textarea></div>
+        <div class="sheet-btns"><button class="btn" type="button" data-a="no">Cancelar</button><button class="btn pri" type="button" data-a="ok">Importar</button></div>`, (el, close) => {
+        el.addEventListener('click', (ev) => {
+          const b = ev.target.closest('[data-a]'); if (!b) return;
+          if (b.dataset.a === 'ok') {
+            try {
+              const data = JSON.parse($('#imp-t', el).value);
+              const list = (Array.isArray(data) ? data : data.routines || []).map(sanitize).filter(Boolean);
+              if (!list.length) throw new Error('vacío');
+              routines.push(...list); saveRoutines(); UI.toast(`${list.length} rutinas importadas`);
+            } catch (e) { UI.toast('No reconocí ese texto como respaldo.'); return; }
+          }
+          close();
+        });
+      });
+    });
+    $('#btn-samples').addEventListener('click', () => { routines.push(...samples()); saveRoutines(); UI.toast('Ejemplos añadidos'); });
+    window.addEventListener('beforeunload', (e) => { if (App.runner && App.runner.state === 'running') { e.preventDefault(); e.returnValue = ''; } });
+  }
+
+  // treadmill → UI
+  tm.on('phase', (p) => {
+    renderChip();
+    if (App.view === 'panel') renderPanel();
+    if (App.view === 'ajustes') renderDiag();
+    if (p === 'ready') { Wake.on(); if (!tm.s.demo && tm.s.boardUnits && !Store.get('cinta.unitsChosen', false)) { settings.unit = tm.s.boardUnits === 'imperial' ? 'mph' : 'kmh'; saveSettings(); Store.set('cinta.unitsChosen', true); setTimeout(() => UI.toast(`Unidades: ${uLabel()}, como tu consola. Cámbialas en Ajustes si no coinciden.`, 4500), 1200); } }
+    if (p === 'off' && !App.runner) Wake.off();
+    if (App.runner) renderRun();
+  });
+  tm.on('telemetry', () => { if (App.view === 'panel') renderLive(); });
+  tm.on('lost', () => { if (App.runner) App.runner.hold('Se perdió la conexión con la cinta.'); Voice.beep(300, 0.4); });
+  tm.on('reconnected', () => { if (App.runner) { renderRun(); UI.toast('Reconectada. Toca Reanudar para seguir.'); } });
+
+  // ------------------------------------------------------------------ boot
+  bind();
+  renderChip();
+  const h = location.hash.slice(1);
+  go(['panel', 'rutinas', 'ajustes'].includes(h) ? h : 'panel', false);
+  if ('serviceWorker' in navigator && location.protocol === 'https:') { try { navigator.serviceWorker.register('sw.js').catch(() => {}); } catch (e) {} }
+  if (navigator.bluetooth && navigator.bluetooth.getAvailability) navigator.bluetooth.getAvailability().then((ok) => { if (!ok) Log.add('err', 'Bluetooth no disponible o apagado en este dispositivo.'); }).catch(() => {});
+  Log.add('info', `Cinta ${VERSION} lista.`);
+  window.__cinta = { tm, App, settings, Log, routines: () => routines, FP };
+})();
+
+</script>
+</body>
+</html>
