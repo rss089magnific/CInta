@@ -1440,7 +1440,11 @@ p{margin:0 0 12px}
     const jog = [seg('Calentamiento', 180, 5.0, 1)];
     for (let i = 0; i < 4; i++) jog.push(seg('Trote', 180, 7.5, 1), seg('Caminata', 60, 5.5, 1));
     jog.push(seg('Enfriamiento', 60, 4.5, 0));
+    const act = [seg('Inicio', 60, 1.0, 1), seg('Sube', 60, 1.5, 1), seg('Sube', 60, 2.0, 1), seg('Sube', 60, 2.5, 2), seg('Sube', 60, 3.0, 2)];
+    [[3.1, 2], [3.2, 2], [3.3, 3], [3.4, 3.5], [3.5, 4], [3.6, 4.5], [3.7, 5], [3.8, 5.5], [3.9, 6], [4.0, 6.5], [4.2, 7], [4.4, 7.5], [4.6, 8], [4.8, 8.5], [5.0, 9]]
+      .forEach(([k, g]) => act.push(seg(`Sube ${g} %`, 30, k, g)));
     return [
+      { id: uid(), name: 'Caminata de activación', segments: act },
       { id: uid(), name: 'Prueba rápida', segments: [seg('Inicio', 60, 3.0, 0), seg('Un poco más', 60, 4.0, 1), seg('Final', 60, 3.0, 0)] },
       { id: uid(), name: 'Caminata con intervalos', segments: intervals },
       { id: uid(), name: 'Cuesta progresiva', segments: hill },
