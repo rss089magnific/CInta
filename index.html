@@ -1440,9 +1440,10 @@ p{margin:0 0 12px}
     const jog = [seg('Calentamiento', 180, 5.0, 1)];
     for (let i = 0; i < 4; i++) jog.push(seg('Trote', 180, 7.5, 1), seg('Caminata', 60, 5.5, 1));
     jog.push(seg('Enfriamiento', 60, 4.5, 0));
-    const act = [seg('Inicio', 60, 1.0, 1), seg('Sube', 60, 1.5, 1), seg('Sube', 60, 2.0, 1), seg('Sube', 60, 2.5, 2), seg('Sube', 60, 3.0, 2)];
+    const mi = (v) => Math.round(v * KM_PER_MI * 100) / 100; // this routine was written in mph
+    const act = [seg('Inicio', 60, mi(1.0), 1), seg('Sube', 60, mi(1.5), 1), seg('Sube', 60, mi(2.0), 1), seg('Sube', 60, mi(2.5), 2), seg('Sube', 60, mi(3.0), 2)];
     [[3.1, 2], [3.2, 2], [3.3, 3], [3.4, 3.5], [3.5, 4], [3.6, 4.5], [3.7, 5], [3.8, 5.5], [3.9, 6], [4.0, 6.5], [4.2, 7], [4.4, 7.5], [4.6, 8], [4.8, 8.5], [5.0, 9]]
-      .forEach(([k, g]) => act.push(seg(`Sube ${g} %`, 30, k, g)));
+      .forEach(([k, g]) => act.push(seg(`Sube ${g} %`, 30, mi(k), g)));
     return [
       { id: uid(), name: 'Caminata de activación', segments: act },
       { id: uid(), name: 'Prueba rápida', segments: [seg('Inicio', 60, 3.0, 0), seg('Un poco más', 60, 4.0, 1), seg('Final', 60, 3.0, 0)] },
@@ -1562,17 +1563,51 @@ p{margin:0 0 12px}
         const i = this.indexAt(this.elapsed);
         if (i >= this.segs.length) { this.finish(true); return; }
         if (i !== this.idx) this.applySegment(i);
+        this.preStart();
         this.announce();
         this.verify();
         this.watch();
       }
       UI.run();
     }
+    // Big rises (>= 1 unit of speed or 1 % incline) start 3 s early so they are done on time;
+    // any speed rise is ramped in 0.1 steps over 3 s instead of one jump.
+    preStart() {
+      const s = this.seg, next = this.segs[this.idx + 1];
+      if (!next || this.pre) return;
+      const rem = this.starts[this.idx + 1] * 1000 - this.elapsed;
+      if (rem > 3000) return;
+      const pre = {};
+      if (toDisp(next.kph) - toDisp(s.kph) >= 0.95) { pre.kph = true; this.ramp(s.kph, next.kph, rem); }
+      if (next.grade - s.grade >= 0.95) { pre.grade = true; tm.setTarget(null, next.grade); }
+      this.pre = pre;
+    }
+    ramp(from, to, ms) {
+      this.clearRamp();
+      const real = ms / (tm.s.demo ? TIME_SCALE : 1);
+      const steps = clamp(Math.round(Math.abs(toDisp(to) - toDisp(from)) / 0.1), 1, 5);
+      for (let j = 1; j <= steps; j++) {
+        const v = j === steps ? to : from + ((to - from) * j) / steps;
+        this.rampT.push(setTimeout(() => { if (this.state === 'running') tm.setTarget(v, null); }, (real / steps) * j));
+      }
+      this.verifyAt = performance.now() + real + 4000;
+    }
+    clearRamp() { (this.rampT || []).forEach(clearTimeout); this.rampT = []; }
     applySegment(i, first) {
+      const pre = (!first && this.pre) || {};
+      this.pre = null;
       this.idx = i;
-      const s = this.segs[i];
+      const s = this.segs[i], prev = this.segs[i - 1];
       this.warned = false; this.beeps = new Set(); this.retries = 0; this.verifyAt = performance.now() + 4000;
-      tm.setTarget(s.kph, s.grade);
+      if (!pre.kph) this.clearRamp();
+      if (first || !prev) tm.setTarget(s.kph, s.grade);
+      else {
+        const rise = !pre.kph && toDisp(s.kph) - toDisp(prev.kph) > 0.05;
+        if (rise) this.ramp(prev.kph, s.kph, 3000 * (tm.s.demo ? TIME_SCALE : 1));
+        const k = pre.kph || rise ? null : s.kph, g = pre.grade ? null : s.grade;
+        if (k != null || g != null) tm.setTarget(k, g);
+        if (pre.kph || pre.grade) this.verifyAt = Math.max(this.verifyAt, performance.now() + 4000);
+      }
       if (!first) { Voice.beep(990, 0.2); Voice.say(`${s.name}. ${speedPhrase(s.kph)}, ${gradePhrase(s.grade)}.`); }
     }
     announce() {
@@ -1613,7 +1648,7 @@ p{margin:0 0 12px}
     }
     async pause() {
       if (this.state !== 'running') return;
-      this.state = 'paused'; this.reason = 'Rutina en pausa.'; UI.run();
+      this.state = 'paused'; this.reason = 'Rutina en pausa.'; this.clearRamp(); this.pre = null; UI.run();
       Voice.say('Pausa.');
       await tm.pause();
     }
@@ -1639,6 +1674,7 @@ p{margin:0 0 12px}
     }
     skip() {
       if (!['running', 'paused'].includes(this.state) || this.idx < 0) return;
+      this.clearRamp(); this.pre = null;
       this.elapsed = this.starts[this.idx + 1] * 1000;
       if (this.idx + 1 >= this.segs.length) { this.finish(true); return; }
       if (this.state === 'running') this.tick();
@@ -1648,7 +1684,7 @@ p{margin:0 0 12px}
       const s = this.seg;
       if (dK) s.kph = tm.clampKph(s.kph + dK);
       if (dG) s.grade = tm.clampGrade(s.grade + dG);
-      this.retries = 0; this.verifyAt = performance.now() + 4000;
+      this.retries = 0; this.verifyAt = performance.now() + 4000; this.clearRamp();
       clearTimeout(this.adjT);
       this.adjT = setTimeout(() => tm.setTarget(dK ? s.kph : null, dG ? s.grade : null), 350);
       UI.run();
@@ -1657,7 +1693,7 @@ p{margin:0 0 12px}
       if (this.state === 'ended') return;
       const wasMoving = tm.isMoving();
       this.state = 'ended';
-      clearInterval(this.timer);
+      clearInterval(this.timer); this.clearRamp();
       this.completed = completed;
       this.moving = Math.min(this.moving, this.total * 1000);
       if (wasMoving && tm.ready) tm.stop();
