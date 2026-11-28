@@ -1570,27 +1570,31 @@ p{margin:0 0 12px}
       }
       UI.run();
     }
-    // Big rises (>= 1 unit of speed or 1 % incline) start 3 s early so they are done on time;
-    // any speed rise is ramped in 0.1 steps over 3 s instead of one jump.
+    // Rises finish ON the time mark: speed climbs 0.1 per second, starting as many seconds early
+    // as there are 0.1 steps (2.0 -> 2.5 starts 5 s early); incline rises together with the speed,
+    // or 1 s early on its own. Drops still happen at the mark.
     preStart() {
       const s = this.seg, next = this.segs[this.idx + 1];
       if (!next || this.pre) return;
       const rem = this.starts[this.idx + 1] * 1000 - this.elapsed;
-      if (rem > 3000) return;
+      const dS = toDisp(next.kph) - toDisp(s.kph), dG = next.grade - s.grade;
+      const steps = dS > 0.05 ? clamp(Math.round(dS / 0.1), 1, 30) : 0;
+      const lead = Math.max(steps, dG > 0.05 ? 1 : 0) * 1000;
+      if (!lead || rem > lead) return;
       const pre = {};
-      if (toDisp(next.kph) - toDisp(s.kph) >= 0.95) { pre.kph = true; this.ramp(s.kph, next.kph, rem); }
-      if (next.grade - s.grade >= 0.95) { pre.grade = true; tm.setTarget(null, next.grade); }
+      if (steps) { pre.kph = true; this.ramp(s.kph, next.kph, steps); }
+      if (dG > 0.05) { pre.grade = true; tm.setTarget(null, next.grade); }
       this.pre = pre;
     }
-    ramp(from, to, ms) {
+    ramp(from, to, steps) {
       this.clearRamp();
-      const real = ms / (tm.s.demo ? TIME_SCALE : 1);
-      const steps = clamp(Math.round(Math.abs(toDisp(to) - toDisp(from)) / 0.1), 1, 5);
+      const every = 1000 / (tm.s.demo ? TIME_SCALE : 1);
+      const a = toDisp(from);
       for (let j = 1; j <= steps; j++) {
-        const v = j === steps ? to : from + ((to - from) * j) / steps;
-        this.rampT.push(setTimeout(() => { if (this.state === 'running') tm.setTarget(v, null); }, (real / steps) * j));
+        const v = j === steps ? to : fromDisp(a + 0.1 * j);
+        this.rampT.push(setTimeout(() => { if (this.state === 'running') tm.setTarget(v, null); }, every * (j - 1)));
       }
-      this.verifyAt = performance.now() + real + 4000;
+      this.verifyAt = performance.now() + every * steps + 4000;
     }
     clearRamp() { (this.rampT || []).forEach(clearTimeout); this.rampT = []; }
     applySegment(i, first) {
@@ -1602,9 +1606,7 @@ p{margin:0 0 12px}
       if (!pre.kph) this.clearRamp();
       if (first || !prev) tm.setTarget(s.kph, s.grade);
       else {
-        const rise = !pre.kph && toDisp(s.kph) - toDisp(prev.kph) > 0.05;
-        if (rise) this.ramp(prev.kph, s.kph, 3000 * (tm.s.demo ? TIME_SCALE : 1));
-        const k = pre.kph || rise ? null : s.kph, g = pre.grade ? null : s.grade;
+        const k = pre.kph ? null : s.kph, g = pre.grade ? null : s.grade;
         if (k != null || g != null) tm.setTarget(k, g);
         if (pre.kph || pre.grade) this.verifyAt = Math.max(this.verifyAt, performance.now() + 4000);
       }
